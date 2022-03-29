@@ -18,6 +18,7 @@ import io.provenance.scope.encryption.util.getAddress
 import io.provenance.scope.objectstore.util.toPublicKey
 import io.provenance.scope.util.toOffsetDateTime
 import mu.KLogging
+import org.bouncycastle.asn1.x509.ObjectDigestInfo.publicKey
 import org.lognet.springboot.grpc.GRpcService
 import java.time.OffsetDateTime
 
@@ -34,7 +35,7 @@ class ObjectStoreGatewayServer(
         request: GatewayOuterClass.FetchObjectRequest,
         responseObserver: StreamObserver<GatewayOuterClass.FetchObjectResponse>
     ) {
-        val requesterPublicKey = request.signature.publicKey.toPublicKey()
+        val requesterPublicKey = request.signature.signer.signingPublicKey.toPublicKey()
 
         if (request.params.expiration.isNotSet() || request.params.expiration.toOffsetDateTime().isBefore(OffsetDateTime.now())) {
             logger.info("Request with invalid expiration received")

@@ -6,6 +6,7 @@ import io.provenance.objectstore.gateway.repository.permissions.InMemoryScopePer
 import io.provenance.objectstore.gateway.repository.permissions.ScopePermissionsRepository
 import io.provenance.scope.encryption.model.DirectKeyRef
 import io.provenance.scope.encryption.model.KeyRef
+import io.provenance.scope.encryption.util.getAddress
 import io.provenance.scope.encryption.util.toJavaPrivateKey
 import io.provenance.scope.encryption.util.toKeyPair
 import io.provenance.scope.objectstore.client.CachedOsClient
@@ -34,9 +35,8 @@ class AppConfig {
         gasEstimationMethod = GasEstimationMethod.MSG_FEE_CALCULATION,
     )
 
-    // todo: remove hardcode
     @Bean
-    fun accountAddress(encryptionKey: KeyRef, provenanceProperties: ProvenanceProperties): String = "tp13wk70ps5qhgmdpjuuk7rslejzatyjyx7d0vp8a" //encryptionKey.publicKey.getAddress(provenanceProperties.mainNet)
+    fun accountAddress(encryptionKey: KeyRef, provenanceProperties: ProvenanceProperties): String = encryptionKey.publicKey.getAddress(provenanceProperties.mainNet)
 
     @Bean
     fun objectPermissionsRepository(dataProperties: DataProperties): ScopePermissionsRepository = when (dataProperties.type) {

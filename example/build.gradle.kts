@@ -19,7 +19,7 @@ tasks.withType<KotlinCompile> {
 }
 
 dependencies {
-    implementation(project(":proto"))
+    implementation(project(":client"))
 
     listOf(
         *Dependencies.Provenance.all(),

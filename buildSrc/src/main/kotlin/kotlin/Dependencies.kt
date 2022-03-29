@@ -2,6 +2,7 @@ object Versions {
     const val BouncyCastle = "1.70"
     const val Grpc = "1.39.0"
     const val GrpcSpringboot = "3.4.3"
+    const val GrpcNetty = "1.24.0"
     const val Jackson = "2.12.5"
     const val JacksonProtobuf = "0.9.12"
     const val Kotlin = "1.6.10"
@@ -35,6 +36,10 @@ object Dependencies {
         val GrpcProtobuf = DependencySpec("io.grpc:grpc-protobuf", Versions.Grpc, exclude = listOf("com.google.protobuf:protobuf-java", "com.google.protobuf:protobuf-java-util")).include()
         val GrpcStub = DependencySpec("io.grpc:grpc-stub", Versions.Grpc).include()
         val GrpcSpringbootStarter = DependencySpec("io.github.lognet:grpc-spring-boot-starter", Versions.GrpcSpringboot).include()
+    }
+
+    object Netty : DependencyCollector() {
+        val GrpcNetty = DependencySpec("io.grpc:grpc-netty", Versions.GrpcNetty).include()
     }
 
     object Jackson : DependencyCollector() {

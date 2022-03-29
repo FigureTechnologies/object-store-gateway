@@ -18,6 +18,7 @@ import io.provenance.client.protobuf.extensions.getBaseAccount
 import io.provenance.client.protobuf.extensions.queryWasm
 import io.provenance.eventstream.stream.infrastructure.ApiClient.Companion.client
 import io.provenance.hdwallet.bip39.MnemonicWords
+import io.provenance.hdwallet.ec.extensions.toJavaECKeyPair
 import io.provenance.hdwallet.ec.extensions.toJavaECPrivateKey
 import io.provenance.hdwallet.ec.extensions.toJavaECPublicKey
 import io.provenance.hdwallet.signer.BCECSigner
@@ -54,6 +55,8 @@ import io.provenance.scope.util.base64String
 import io.provenance.scope.util.sha256
 import io.provenance.scope.util.toByteString
 import io.provenance.scope.util.toProtoTimestamp
+import main.kotlin.io.provenance.objectstore.gateway.client.ClientConfig
+import main.kotlin.io.provenance.objectstore.gateway.client.GatewayClient
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import tech.figure.proto.util.toProtoUUID
 import java.net.URI
@@ -145,6 +148,7 @@ fun main() {
         .setId(UUID.randomUUID().toProtoUUID())
         .build()
     val hash = osClient.putRecord(record, DirectKeyRef(privateKey.toKeyPair()), DirectKeyRef(privateKey.toKeyPair())).get().value
+    osClient.osClient.close()
 
     val writeScopeMsg = MsgWriteScopeRequest.newBuilder()
         .setScopeUuid(scopeUuid.toString())
@@ -222,45 +226,19 @@ fun main() {
     val validatorSigner = WalletSigner(NetworkType.TESTNET, validatorMnemonic)
     println("validator address from mnemonic: ${validatorSigner.address()}")
 
-    val gatewayClient = GatewayGrpc.newFutureStub(NettyChannelBuilder.forAddress("localhost", 5002)
-        .apply {
-            usePlaintext()
+    GatewayClient(ClientConfig(URI("grpc://localhost:5002"))).use { gatewayClient ->
+        while (true) {
+            try {
+                val response = gatewayClient.requestScopeData(scopeAddress, DirectKeyRef(validatorSigner.account.keyPair.toJavaECKeyPair()))
+
+                println("Fetched records $response")
+                break
+            } catch (e: Exception) {
+                println("Exception fetching records: ${e.message}")
+                Thread.sleep(5000)
+            }
+
         }
-//        .executor(Executors)
-//        .maxInboundMessageSize(opts.inboundMessageSize)
-//        .idleTimeout(opts.idleTimeout.first, opts.idleTimeout.second)
-//        .keepAliveTime(opts.keepAliveTime.first, opts.keepAliveTime.second)
-//        .keepAliveTimeout(opts.keepAliveTimeout.first, opts.keepAliveTimeout.second)
-//        .also { builder -> channelConfigLambda(builder) }
-        .build())
-    while (true) {
-        val params = GatewayOuterClass.FetchObjectParams.newBuilder()
-            .setScopeAddress(scopeAddress)
-            .setExpiration(OffsetDateTime.now().plusSeconds(10).toProtoTimestamp())
-            .build()
-
-        val signature = Signature.getInstance("SHA512withECDDSA", BouncyCastleProvider.PROVIDER_NAME).run {
-            initSign(validatorSigner.account.keyPair.privateKey.toJavaECPrivateKey())
-            update(params.toByteArray())
-            sign()
-        }
-
-        val request = GatewayOuterClass.FetchObjectRequest.newBuilder()
-            .setParams(params)
-            .setSignature(GatewayOuterClass.Signature.newBuilder()
-                .setSignature(signature.toByteString())
-                .setPublicKey(validatorSigner.account.keyPair.publicKey.toJavaECPublicKey().toPublicKeyProto())
-            )
-            .build()
-        try {
-            val response = gatewayClient.fetchObject(request).get()
-
-            println("Fetched records $response")
-            break
-        } catch (e: Exception) {
-            println("Exception fetching records: ${e.message}")
-            Thread.sleep(5000)
-        }
-
     }
+
 }
