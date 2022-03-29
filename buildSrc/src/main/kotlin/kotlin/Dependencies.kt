@@ -18,6 +18,10 @@ object Versions {
     const val Scarlet = "0.1.12"
     const val SpringBoot = "2.6.4"
     const val SpringBootDependencyManagement = "1.0.11.RELEASE"
+    const val Exposed = "0.37.3"
+    const val Postgres = "42.3.3"
+    const val SqLite = "3.36.0.3"
+    const val HikariCP = "5.0.1"
 }
 
 object Plugins {
@@ -100,6 +104,15 @@ object Dependencies {
         val StarterAOP = included { DependencySpec("org.springframework.boot:spring-boot-starter-aop") }
         val StarterJetty = included { DependencySpec("org.springframework.boot:spring-boot-starter-jetty") }
         val StarterWeb = included { DependencySpec("org.springframework.boot:spring-boot-starter-web") }
+    }
+
+    object Exposed : DependencyCollector() {
+        val ExposedCore =DependencySpec("org.jetbrains.exposed:exposed-core", Versions.Exposed).include()
+        val ExposedDao = DependencySpec("org.jetbrains.exposed:exposed-dao", Versions.Exposed).include()
+        val ExposedJdbc = DependencySpec("org.jetbrains.exposed:exposed-jdbc", Versions.Exposed).include()
+        val Postgres = DependencySpec("org.postgresql:postgresql", Versions.Postgres).include()
+        val HikariCP = DependencySpec("com.zaxxer:HikariCP", Versions.HikariCP).include()
+        val SqLite = DependencySpec("org.xerial:sqlite-jdbc", Versions.SqLite).include()
     }
 }
 

@@ -2,8 +2,6 @@ package io.provenance.objectstore.gateway.configuration
 
 import io.provenance.client.grpc.GasEstimationMethod
 import io.provenance.client.grpc.PbClient
-import io.provenance.objectstore.gateway.repository.permissions.InMemoryScopePermissionsRepository
-import io.provenance.objectstore.gateway.repository.permissions.ScopePermissionsRepository
 import io.provenance.scope.encryption.model.DirectKeyRef
 import io.provenance.scope.encryption.model.KeyRef
 import io.provenance.scope.encryption.util.getAddress
@@ -37,10 +35,4 @@ class AppConfig {
 
     @Bean
     fun accountAddress(encryptionKey: KeyRef, provenanceProperties: ProvenanceProperties): String = encryptionKey.publicKey.getAddress(provenanceProperties.mainNet)
-
-    @Bean
-    fun objectPermissionsRepository(dataProperties: DataProperties): ScopePermissionsRepository = when (dataProperties.type) {
-        "memory" -> InMemoryScopePermissionsRepository()
-        else -> throw IllegalArgumentException("Unsupported data storage type of ${dataProperties.type} for ObjectPermissionsRepository")
-    }
 }

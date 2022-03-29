@@ -46,6 +46,7 @@ dependencies {
         *Dependencies.Provenance.all(),
         *Dependencies.Scarlet.all(),
         *Dependencies.SpringBoot.all(),
+        *Dependencies.Exposed.all(),
     ).forEach { it.implementation(this) }
 
     listOf(

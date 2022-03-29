@@ -1,5 +1,6 @@
 package io.provenance.objectstore.gateway.configuration
 
+import org.intellij.lang.annotations.Pattern
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.ConstructorBinding
 import org.springframework.validation.annotation.Validated
@@ -40,6 +41,20 @@ data class ProvenanceProperties(
 @ConfigurationProperties(prefix = "data")
 data class DataProperties(
     val type: String,
+)
+
+@Validated
+@ConstructorBinding
+@ConfigurationProperties(prefix = "database")
+data class DatabaseProperties(
+    val type: String,
+    val name: String,
+    val username: String,
+    val password: String,
+    val host: String,
+    val port: String,
+    val schema: String,
+    @Pattern(value = "\\d{1,2}") val connectionPoolSize: String,
 )
 
 @Validated
