@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package io.provenance.objectstore.gateway;
+
+import "public_key.proto";
+import "google/protobuf/timestamp.proto";
+
+service Gateway {
+  rpc FetchObject (FetchObjectRequest) returns (FetchObjectResponse) {};
+}
+
+message FetchObjectRequest {
+  FetchObjectParams params = 1;
+  Signature signature = 2;
+}
+
+message FetchObjectParams {
+  string scope_address = 1;
+  google.protobuf.Timestamp expiration = 2;
+}
+
+message Signature {
+  bytes signature = 1;
+  io.provenance.scope.PublicKey public_key = 2;
+}
+
+message FetchObjectResponse {
+  string scope_id = 1;
+  repeated Record records = 2;
+}
+
+message Record {
+  string name = 1;
+  repeated RawObject inputs = 2;
+  repeated RawObject outputs = 3;
+}
+
+message RawObject {
+  string hash = 1;
+  string type = 2;
+  bytes object_bytes = 3;
+}
