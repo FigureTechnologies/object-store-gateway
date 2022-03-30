@@ -22,12 +22,16 @@ object Versions {
     const val Postgres = "42.3.3"
     const val SqLite = "3.36.0.3"
     const val HikariCP = "5.0.1"
+    const val NexusPublishing = "1.1.0"
 }
 
 object Plugins {
     val Idea = PluginSpec("idea")
+    val Signing = PluginSpec("signing")
     val SpringBoot = PluginSpec("org.springframework.boot", Versions.SpringBoot)
     val SpringDependencyManagement = PluginSpec("io.spring.dependency-management", Versions.SpringBootDependencyManagement)
+    val MavenPublish = PluginSpec("maven-publish")
+    val NexusPublishing = PluginSpec("io.github.gradle-nexus.publish-plugin", Versions.NexusPublishing)
 }
 
 object Dependencies {
