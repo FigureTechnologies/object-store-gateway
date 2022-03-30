@@ -2,6 +2,7 @@ package io.provenance.objectstore.gateway.configuration
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
+import io.provenance.objectstore.gateway.model.BlockHeightTable
 import io.provenance.objectstore.gateway.model.ScopePermissionsTable
 import mu.KLogging
 import org.bouncycastle.asn1.x500.style.RFC4519Style.name
@@ -62,7 +63,8 @@ class DataMigration(dataSource: DataSource) {
         Database.registerDialect("sqlite") { SQLiteDialect() }
         transaction {
             SchemaUtils.create(
-                ScopePermissionsTable
+                ScopePermissionsTable,
+                BlockHeightTable,
             )
         }
     }

@@ -1,7 +1,5 @@
 package io.provenance.objectstore.gateway.server
 
-import com.google.protobuf.ByteString
-import com.google.protobuf.Timestamp
 import io.grpc.stub.StreamObserver
 import io.provenance.client.protobuf.extensions.isNotSet
 import io.provenance.objectstore.gateway.GatewayGrpc
@@ -10,15 +8,13 @@ import io.provenance.objectstore.gateway.configuration.ProvenanceProperties
 import io.provenance.objectstore.gateway.exception.AccessDeniedException
 import io.provenance.objectstore.gateway.exception.SignatureValidationException
 import io.provenance.objectstore.gateway.exception.TimestampValidationException
-import io.provenance.objectstore.gateway.repository.permissions.ScopePermissionsRepository
+import io.provenance.objectstore.gateway.repository.ScopePermissionsRepository
 import io.provenance.objectstore.gateway.service.ScopeFetchService
-import io.provenance.objectstore.gateway.util.toByteString
 import io.provenance.objectstore.gateway.util.validateSignature
 import io.provenance.scope.encryption.util.getAddress
 import io.provenance.scope.objectstore.util.toPublicKey
 import io.provenance.scope.util.toOffsetDateTime
 import mu.KLogging
-import org.bouncycastle.asn1.x509.ObjectDigestInfo.publicKey
 import org.lognet.springboot.grpc.GRpcService
 import java.time.OffsetDateTime
 

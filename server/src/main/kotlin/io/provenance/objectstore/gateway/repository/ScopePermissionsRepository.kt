@@ -1,4 +1,4 @@
-package io.provenance.objectstore.gateway.repository.permissions
+package io.provenance.objectstore.gateway.repository
 
 import io.provenance.objectstore.gateway.model.ScopePermission
 import org.jetbrains.exposed.sql.transactions.transaction

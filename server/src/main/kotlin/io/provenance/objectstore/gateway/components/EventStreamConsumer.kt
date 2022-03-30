@@ -9,6 +9,7 @@ import io.provenance.eventstream.stream.withOrdered
 import io.provenance.eventstream.stream.withTxEvents
 import io.provenance.objectstore.gateway.configuration.ContractProperties
 import io.provenance.objectstore.gateway.configuration.EventStreamProperties
+import io.provenance.objectstore.gateway.repository.BlockHeightRepository
 import io.provenance.objectstore.gateway.service.StreamEventHandlerService
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
@@ -25,7 +26,8 @@ class EventStreamConsumer(
     private val eventStreamProperties: EventStreamProperties,
     private val contractProperties: ContractProperties,
     private val accountAddress: String,
-    private val streamEventHandlerService: StreamEventHandlerService
+    private val streamEventHandlerService: StreamEventHandlerService,
+    private val blockHeightRepository: BlockHeightRepository,
 ) {
     private companion object: KLogging() {
         private var eventStreamRunning = AtomicBoolean(false)
@@ -45,8 +47,9 @@ class EventStreamConsumer(
             runBlocking {
                 blockStreamFactory.createSource(
                     BlockStreamOptions.create(
-//                        withFromHeight(blockHeightRepository.lastProcessedHeight.takeIf { it > 0 } ?: eventStreamProperties.epochHeight),
-                        withFromHeight(eventStreamProperties.epochHeight),
+                        withFromHeight(blockHeightRepository.getLastProcessedBlockHeight().also {
+                            logger.info("Streaming from height $it")
+                        }),
                         withOrdered(true),
                         withTxEvents(setOf("wasm"))
                     )
@@ -68,15 +71,15 @@ class EventStreamConsumer(
                             return@collect
                         }
 
-//                        if (block.height!! < blockHeightRepository.lastProcessedHeight) {
-//                            logger.warn("Skipping already processed block at height ${block.height}")
-//                            return@collect
-//                        }
+                        if (block.height!! < blockHeightRepository.getLastProcessedBlockHeight()) {
+                            logger.warn("Skipping already processed block at height ${block.height}")
+                            return@collect
+                        }
                         block.txEvents.forEach {
                             streamEventHandlerService.handleEvent(it)
                         }
 
-//                        blockHeightRepository.lastProcessedHeight = block.height!!
+                        blockHeightRepository.setLastProcessedBlockHeight(block.height!!)
                     }
             }
         } catch (e: Exception) {

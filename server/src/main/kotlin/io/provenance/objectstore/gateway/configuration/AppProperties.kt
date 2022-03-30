@@ -5,6 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.ConstructorBinding
 import org.springframework.validation.annotation.Validated
 import java.net.URI
+import java.util.UUID
 
 @ConstructorBinding
 @ConfigurationProperties(prefix = "event.stream")
@@ -14,6 +15,7 @@ data class EventStreamProperties(
     val rpcUri: URI,
     val epochHeight: Long,
     val enabled: Boolean,
+    val blockHeightTrackingUuid: UUID,
 )
 
 @ConstructorBinding

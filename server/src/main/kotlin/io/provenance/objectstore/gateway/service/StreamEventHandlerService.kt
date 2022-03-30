@@ -4,7 +4,7 @@ import io.provenance.eventstream.stream.models.TxEvent
 import io.provenance.objectstore.gateway.eventstream.AssetClassificationEvent
 import io.provenance.objectstore.gateway.eventstream.ContractEvent
 import io.provenance.objectstore.gateway.extensions.checkNotNull
-import io.provenance.objectstore.gateway.repository.permissions.ScopePermissionsRepository
+import io.provenance.objectstore.gateway.repository.ScopePermissionsRepository
 import mu.KLogging
 import org.springframework.stereotype.Service
 
