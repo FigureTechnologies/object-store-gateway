@@ -129,7 +129,7 @@ fun main() {
     println("contractSpecUuid = $contractSpecUuid")
     val contractSpec = client.metadataClient.contractSpecification(ContractSpecificationRequest.newBuilder().setSpecificationId(contractSpecUuid.toString()).setIncludeRecordSpecs(true).build())
     val recordSpec = contractSpec.recordSpecificationsList.first()
-    val (recordName, recordType) = recordSpec.specification.let { it.name to it.typeName }
+    val recordName = recordSpec.specification.name
 
     println("enter your mnemonic:")
     val mnemonic = readLine()!!
