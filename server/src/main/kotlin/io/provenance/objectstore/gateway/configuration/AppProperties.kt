@@ -40,7 +40,7 @@ data class ProvenanceProperties(
 
 @Validated
 @ConstructorBinding
-@ConfigurationProperties(prefix = "database")
+@ConfigurationProperties(prefix = "db")
 data class DatabaseProperties(
     val type: String,
     val name: String,
