@@ -20,11 +20,6 @@ tasks.withType<KotlinCompile> {
     }
 }
 
-java {
-    withJavadocJar()
-    withSourcesJar()
-}
-
 dependencies {
     api(project(":proto"))
     listOf(

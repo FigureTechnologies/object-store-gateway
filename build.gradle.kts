@@ -27,7 +27,16 @@ nexusPublishing {
 }
 
 subprojects {
-	if (listOf("client, proto").contains(this.name)) {
+	if (listOf("client", "proto").contains(this.name)) {
+		apply(plugin = Plugins.MavenPublish.id)
+		apply(plugin = Plugins.Signing.id)
+		apply(plugin = "java-library")
+
+		java {
+			withJavadocJar()
+			withSourcesJar()
+		}
+
 		publishing {
 			publications {
 				create<MavenPublication>("maven") {
