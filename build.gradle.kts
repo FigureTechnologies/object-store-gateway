@@ -27,7 +27,8 @@ nexusPublishing {
 }
 
 subprojects {
-	if (listOf("client", "proto").contains(this.name)) {
+	val projectName = name
+	if (listOf("client", "proto").contains(projectName)) {
 		apply(plugin = Plugins.MavenPublish.id)
 		apply(plugin = Plugins.Signing.id)
 		apply(plugin = "java-library")
@@ -41,7 +42,7 @@ subprojects {
 			publications {
 				create<MavenPublication>("maven") {
 					groupId = "io.provenance.objectstore.gateway"
-					artifactId = this.name
+					artifactId = projectName
 
 					from(components["java"])
 
