@@ -1,4 +1,4 @@
-package main.kotlin.io.provenance.objectstore.gateway.client
+package io.provenance.objectstore.gateway.client
 
 import io.grpc.netty.NettyChannelBuilder
 import java.net.URI

@@ -1,4 +1,4 @@
-package main.kotlin.io.provenance.objectstore.gateway.client
+package io.provenance.objectstore.gateway.client
 
 import io.grpc.Deadline
 import io.grpc.netty.NettyChannelBuilder
@@ -6,13 +6,11 @@ import io.provenance.objectstore.gateway.GatewayGrpc
 import io.provenance.objectstore.gateway.GatewayOuterClass
 import io.provenance.scope.encryption.crypto.SignerImpl
 import io.provenance.scope.encryption.model.KeyRef
-import io.provenance.scope.sdk.toPublicKeyProto
 import io.provenance.scope.util.toProtoTimestamp
 import java.io.Closeable
 import java.time.Duration
 import java.time.OffsetDateTime
 import java.util.concurrent.TimeUnit
-import kotlin.math.sign
 
 class GatewayClient(val config: ClientConfig): Closeable {
     private val channel = NettyChannelBuilder.forAddress(config.gatewayUri.host, config.gatewayUri.port)
