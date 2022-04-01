@@ -44,7 +44,7 @@ class DataConfig {
                     TransactionManager.manager.defaultIsolationLevel = Connection.TRANSACTION_SERIALIZABLE
                 }
             }
-            logger.info("Connecting to {}", jdbcUrl)
+            logger.info("Connecting to {} on schema {} with user {}", jdbcUrl, databaseProperties.schema, databaseProperties.username)
             username = databaseProperties.username
             password = databaseProperties.password
             schema = databaseProperties.schema
