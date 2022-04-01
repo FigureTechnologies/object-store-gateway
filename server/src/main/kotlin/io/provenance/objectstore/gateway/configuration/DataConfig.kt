@@ -57,13 +57,15 @@ class DataConfig {
 }
 
 @Component
-class DataMigration(dataSource: DataSource) {
+class DataMigration(dataSource: DataSource, databaseProperties: DatabaseProperties) {
     init {
         Database.connect(dataSource)
         Database.registerDialect("pgsql") { PostgreSQLDialect() }
         Database.registerDialect("sqlite") { SQLiteDialect() }
         transaction {
-            SchemaUtils.createSchema(Schema(dataSource.connection.schema))
+            if (databaseProperties.type == "postgresql") {
+                SchemaUtils.createSchema(Schema(databaseProperties.schema))
+            }
             SchemaUtils.create(
                 ScopePermissionsTable,
                 BlockHeightTable,
