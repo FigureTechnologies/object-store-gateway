@@ -7,6 +7,7 @@ import io.provenance.objectstore.gateway.model.ScopePermissionsTable
 import mu.KLogging
 import org.bouncycastle.asn1.x500.style.RFC4519Style.name
 import org.jetbrains.exposed.sql.Database
+import org.jetbrains.exposed.sql.Schema
 import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -62,6 +63,7 @@ class DataMigration(dataSource: DataSource) {
         Database.registerDialect("pgsql") { PostgreSQLDialect() }
         Database.registerDialect("sqlite") { SQLiteDialect() }
         transaction {
+            SchemaUtils.createSchema(Schema(dataSource.connection.schema))
             SchemaUtils.create(
                 ScopePermissionsTable,
                 BlockHeightTable,
