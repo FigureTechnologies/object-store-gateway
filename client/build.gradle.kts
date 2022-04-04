@@ -25,7 +25,6 @@ dependencies {
     listOf(
         *Dependencies.Grpc.all(),
         *Dependencies.Protobuf.all(),
-        *Dependencies.Netty.all(),
         *Dependencies.BouncyCastle.all(),
         *Dependencies.Provenance.all(),
     ).forEach { it.implementation(this) }

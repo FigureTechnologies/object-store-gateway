@@ -1,6 +1,6 @@
 package io.provenance.objectstore.gateway.client
 
-import io.grpc.netty.NettyChannelBuilder
+import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder
 import java.net.URI
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors

@@ -28,5 +28,4 @@ dependencies {
         it.implementation(this)
     }
     implementation("io.provenance.model:metadata-asset-model:0.1.2")
-    implementation("io.grpc:grpc-netty:1.24.0")
 }

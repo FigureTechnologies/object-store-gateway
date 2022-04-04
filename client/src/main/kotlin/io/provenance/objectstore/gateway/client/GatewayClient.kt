@@ -1,7 +1,7 @@
 package io.provenance.objectstore.gateway.client
 
 import io.grpc.Deadline
-import io.grpc.netty.NettyChannelBuilder
+import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder
 import io.provenance.objectstore.gateway.GatewayGrpc
 import io.provenance.objectstore.gateway.GatewayOuterClass
 import io.provenance.scope.encryption.crypto.SignerImpl
