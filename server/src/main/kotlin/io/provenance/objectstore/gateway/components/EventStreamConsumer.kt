@@ -1,9 +1,6 @@
 package io.provenance.objectstore.gateway.components
 
-import io.provenance.eventstream.extensions.decodeBase64
 import io.provenance.eventstream.stream.BlockStreamFactory
-import io.provenance.eventstream.stream.BlockStreamOptions
-import io.provenance.eventstream.stream.models.StreamBlock
 import io.provenance.eventstream.stream.withFromHeight
 import io.provenance.eventstream.stream.withOrdered
 import io.provenance.eventstream.stream.withTxEvents
@@ -31,6 +28,7 @@ class EventStreamConsumer(
 ) {
     private companion object: KLogging() {
         private var eventStreamRunning = AtomicBoolean(false)
+        private val TX_EVENTS = setOf("wasm")
     }
 
     @Scheduled(fixedDelay = 10_000)
@@ -46,41 +44,42 @@ class EventStreamConsumer(
         try {
             runBlocking {
                 blockStreamFactory.createSource(
-                    BlockStreamOptions.create(
-                        withFromHeight(blockHeightRepository.getLastProcessedBlockHeight().also {
-                            logger.info("Streaming from height $it")
-                        }),
-                        withOrdered(true),
-                        withTxEvents(setOf("wasm"))
-                    )
+                    withFromHeight(blockHeightRepository.getLastProcessedBlockHeight().also {
+                        logger.info("Streaming from height $it")
+                    }),
+                    withOrdered(true),
                 )
-                    .streamBlocks()
-                    .onCompletion { optionalException ->
-                        optionalException?.also {
-                            logger.error("Block stream completed with an exception", it)
-                        } ?: logger.warn("Block stream completed early")
-                        eventStreamRunning.set(false)
+                .streamBlocks()
+                .onCompletion { optionalException ->
+                    optionalException?.also {
+                        logger.error("Block stream completed with an exception", it)
+                    } ?: logger.warn("Block stream completed early")
+                    eventStreamRunning.set(false)
+                }
+                .catch { e ->
+                    logger.error("Failed on event stream processing", e)
+                    eventStreamRunning.set(false)
+                }
+                .collect { block ->
+                    if (block.height == null) {
+                        logger.error("Received block with null height")
+                        return@collect
                     }
-                    .catch { e ->
-                        logger.error("Failed on event stream processing", e)
-                        eventStreamRunning.set(false)
-                    }
-                    .collect { block ->
-                        if (block.height == null) {
-                            logger.error("Received block with null height")
-                            return@collect
-                        }
 
-                        if (block.height!! < blockHeightRepository.getLastProcessedBlockHeight()) {
-                            logger.warn("Skipping already processed block at height ${block.height}")
-                            return@collect
-                        }
+                    val lastProcessedHeight = blockHeightRepository.getLastProcessedBlockHeight()
+
+                    if (block.txEvents.any { TX_EVENTS.contains(it.eventType) }) { // these are the blocks you are looking for
                         block.txEvents.forEach {
                             streamEventHandlerService.handleEvent(it)
                         }
+                    }
 
+                    if (block.height!! < lastProcessedHeight) {
+                        logger.warn("Received lower block height than last processed (${block.height} vs. $lastProcessedHeight)")
+                    } else {
                         blockHeightRepository.setLastProcessedBlockHeight(block.height!!)
                     }
+                }
             }
         } catch (e: Exception) {
             logger.error("Event stream failed", e)
