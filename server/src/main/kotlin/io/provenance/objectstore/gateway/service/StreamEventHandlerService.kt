@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service
 
 @Service
 class StreamEventHandlerService(
-    private val accountAddress: String,
+    private val accountAddresses: Set<String>,
     private val scopePermissionsRepository: ScopePermissionsRepository
 ) {
     private companion object : KLogging()
@@ -38,8 +38,8 @@ class StreamEventHandlerService(
             return
         }
         // only handle events onboarded by registered key
-        if (event.scopeOwnerAddress != accountAddress) {
-            logger.info("Skipping event of type [${event.eventType}] for different scope owner [${event.scopeOwnerAddress}]")
+        if (!accountAddresses.contains(event.scopeOwnerAddress)) {
+            logger.info("Skipping event of type [${event.eventType}] for unrelated scope owner [${event.scopeOwnerAddress}]")
             return
         }
         when (event.eventType) {
@@ -54,6 +54,6 @@ class StreamEventHandlerService(
         val scopeAddress = event.scopeAddress.checkNotNull { "$logPrefix Expected the onboard asset event to include a scope address" }
 
         logger.info("$logPrefix Adding verifier to access list for scope $scopeAddress")
-        scopePermissionsRepository.addAccessPermission(event.scopeAddress!!, event.verifierAddress!!)
+        scopePermissionsRepository.addAccessPermission(event.scopeAddress!!, event.verifierAddress!!, event.scopeOwnerAddress!!)
     }
 }

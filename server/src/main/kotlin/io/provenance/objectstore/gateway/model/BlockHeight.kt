@@ -9,7 +9,7 @@ import org.jetbrains.exposed.dao.id.UUIDTable
 import java.time.OffsetDateTime
 import java.util.UUID
 
-object BlockHeightTable : UUIDTable("uuid") {
+object BlockHeightTable : UUIDTable("block_height", "uuid") {
     val height = long("height")
     val timestamp = offsetDatetime("timestamp")
 }

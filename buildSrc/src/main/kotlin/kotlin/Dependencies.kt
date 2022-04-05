@@ -10,7 +10,7 @@ object Versions {
     const val OkHttp = "4.9.1"
     const val Protobuf = "3.19.1"
     const val ProvenanceClient = "1.0.5"
-    const val ProvenanceEventStream = "0.4.0"
+    const val ProvenanceEventStream = "0.6.0-rc3"
     const val ProvenanceHdWallet = "0.1.15"
     const val ProvenanceProto = "1.8.0-rc10"
     const val ProvenanceScope = "0.4.9"

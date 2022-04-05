@@ -22,9 +22,11 @@ class AppConfig {
     }
 
     @Bean
-    fun encryptionKey(objectStoreProperties: ObjectStoreProperties): KeyRef = objectStoreProperties.privateKey.toJavaPrivateKey().let {
-        DirectKeyRef(it.toKeyPair())
-    }
+    fun encryptionKeys(provenanceProperties: ProvenanceProperties, objectStoreProperties: ObjectStoreProperties): Map<String, KeyRef> = objectStoreProperties.privateKeys.map {
+        it.toJavaPrivateKey().toKeyPair().let { keyPair ->
+            keyPair.public.getAddress(provenanceProperties.mainNet) to DirectKeyRef(keyPair)
+        }
+    }.toMap()
 
     @Bean
     fun pbClient(provenanceProperties: ProvenanceProperties): PbClient = PbClient(
@@ -34,5 +36,5 @@ class AppConfig {
     )
 
     @Bean
-    fun accountAddress(encryptionKey: KeyRef, provenanceProperties: ProvenanceProperties): String = encryptionKey.publicKey.getAddress(provenanceProperties.mainNet)
+    fun accountAddresses(encryptionKeys: Map<String, KeyRef>): Set<String> = encryptionKeys.keys
 }
