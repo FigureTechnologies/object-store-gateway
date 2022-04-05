@@ -37,6 +37,7 @@ class ScopeFetchService(
 
         val granterAddress = if (scope.scope.scope.ownersList.contains(requesterAddress.toOwnerParty()) || scope.scope.scope.valueOwnerAddress == requesterAddress) {
             // a scope owner can request their own scope data
+            logger.debug("Received request for scope data from scope owner [scope: $scopeAddress, owner: $requesterAddress]")
             requesterAddress
         } else {
             // non-scope owners need to have been granted access to this scope
