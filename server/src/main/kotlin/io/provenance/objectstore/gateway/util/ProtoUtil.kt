@@ -11,9 +11,9 @@ import java.security.Signature
 
 fun ByteArray.toByteString() = ByteString.copyFrom(this)
 
-fun GatewayOuterClass.FetchObjectRequest.validateSignature(): Boolean = Signature.getInstance("SHA512withECDDSA", BouncyCastleProvider.PROVIDER_NAME).run {
+fun GatewayOuterClass.FetchObjectRequest.validateSignature(): Boolean = Signature.getInstance("SHA512withECDDSA", BouncyCastleProvider.PROVIDER_NAME).runCatching {
     val requesterPublicKey = signature.signer.signingPublicKey.toPublicKey()
     initVerify(requesterPublicKey)
     update(params.toByteArray())
     verify(signature.signature.base64Decode())
-}
+}.getOrDefault(false)
