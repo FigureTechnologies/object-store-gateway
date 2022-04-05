@@ -3,9 +3,6 @@ package io.provenance.objectstore.gateway.components
 import io.provenance.eventstream.stream.BlockStreamFactory
 import io.provenance.eventstream.stream.withFromHeight
 import io.provenance.eventstream.stream.withOrdered
-import io.provenance.eventstream.stream.withTxEvents
-import io.provenance.objectstore.gateway.configuration.ContractProperties
-import io.provenance.objectstore.gateway.configuration.EventStreamProperties
 import io.provenance.objectstore.gateway.repository.BlockHeightRepository
 import io.provenance.objectstore.gateway.service.StreamEventHandlerService
 import kotlinx.coroutines.flow.catch
@@ -20,9 +17,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 @Component
 class EventStreamConsumer(
     private val blockStreamFactory: BlockStreamFactory,
-    private val eventStreamProperties: EventStreamProperties,
-    private val contractProperties: ContractProperties,
-    private val accountAddress: String,
     private val streamEventHandlerService: StreamEventHandlerService,
     private val blockHeightRepository: BlockHeightRepository,
 ) {

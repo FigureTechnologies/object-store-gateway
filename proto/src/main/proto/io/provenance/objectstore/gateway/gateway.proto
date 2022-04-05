@@ -16,6 +16,8 @@ message FetchObjectRequest {
 
 message FetchObjectParams {
   string scope_address = 1;
+  string granter_address = 3; // optional
+
   google.protobuf.Timestamp expiration = 2;
 }
 

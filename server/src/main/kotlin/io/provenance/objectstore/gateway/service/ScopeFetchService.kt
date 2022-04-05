@@ -13,10 +13,9 @@ import org.springframework.stereotype.Component
 @Component
 class ScopeFetchService(
     private val objectStoreClient: CachedOsClient,
-    private val encryptionKeyRef: KeyRef,
     private val pbClient: PbClient,
 ) {
-    fun fetchScope(scopeAddress: String): List<GatewayOuterClass.Record> =
+    fun fetchScope(scopeAddress: String, encryptionKeyRef: KeyRef): List<GatewayOuterClass.Record> =
         pbClient.metadataClient.scope(ScopeRequest.newBuilder().setScopeId(scopeAddress).setIncludeRecords(true).build()).also {
             println("fetching ${it.recordsCount} records")
         }.recordsList

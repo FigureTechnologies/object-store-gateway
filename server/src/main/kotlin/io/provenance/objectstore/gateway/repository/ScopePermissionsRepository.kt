@@ -6,9 +6,15 @@ import org.springframework.stereotype.Service
 
 @Service
 class ScopePermissionsRepository {
-    fun addAccessPermission(scopeAddress: String, address: String) {
-        transaction { ScopePermission.new(scopeAddress, address) }
+    fun addAccessPermission(scopeAddress: String, granteeAddress: String, granterAddress: String) {
+        transaction { ScopePermission.new(scopeAddress, granteeAddress, granterAddress) }
     }
 
-    fun hasAccessPermission(scopeAddress: String, address: String): Boolean = transaction { ScopePermission.findByScopeIdAndAddress(scopeAddress, address) } != null
+    fun getAccessGranterAddress(scopeAddress: String, granteeAddress: String, granterAddress: String?): String? = transaction {
+        if (granterAddress != null) {
+            ScopePermission.findByScopeIdAndAddresses(scopeAddress, granteeAddress, granterAddress)
+        } else {
+            ScopePermission.findFirstByScopeIdAndGranteeAddress(scopeAddress, granteeAddress)
+        }
+    }?.granterAddress
 }
