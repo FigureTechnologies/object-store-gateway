@@ -7,14 +7,12 @@ import io.provenance.metadata.v1.ScopeRequest
 import io.provenance.objectstore.gateway.GatewayOuterClass
 import io.provenance.objectstore.gateway.configuration.ProvenanceProperties
 import io.provenance.objectstore.gateway.exception.AccessDeniedException
-import io.provenance.objectstore.gateway.model.ScopePermissionsTable.granterAddress
 import io.provenance.objectstore.gateway.repository.ScopePermissionsRepository
 import io.provenance.objectstore.gateway.util.toByteString
 import io.provenance.scope.encryption.model.KeyRef
 import io.provenance.scope.encryption.util.getAddress
 import io.provenance.scope.objectstore.client.CachedOsClient
 import io.provenance.scope.objectstore.util.base64Decode
-import io.provenance.scope.objectstore.util.toPublicKey
 import io.provenance.scope.sdk.extensions.resultType
 import mu.KLogging
 import org.springframework.stereotype.Component
@@ -33,9 +31,9 @@ class ScopeFetchService(
     fun fetchScope(scopeAddress: String, requesterPublicKey: PublicKey, providedGranterAddress: String?): List<GatewayOuterClass.Record> {
         val requesterAddress = requesterPublicKey.getAddress(provenanceProperties.mainNet)
 
-        val scope = pbClient.metadataClient.scope(ScopeRequest.newBuilder().setScopeId(scopeAddress).setIncludeRecords(true).build())
+        val scopeResponse = pbClient.metadataClient.scope(ScopeRequest.newBuilder().setScopeId(scopeAddress).setIncludeRecords(true).build())
 
-        val granterAddress = if (scope.scope.scope.ownersList.contains(requesterAddress.toOwnerParty()) || scope.scope.scope.valueOwnerAddress == requesterAddress) {
+        val granterAddress = if (scopeResponse.scope.scope.ownersList.contains(requesterAddress.toOwnerParty()) || scopeResponse.scope.scope.valueOwnerAddress == requesterAddress) {
             // a scope owner can request their own scope data
             logger.debug("Received request for scope data from scope owner [scope: $scopeAddress, owner: $requesterAddress]")
             requesterAddress
@@ -56,8 +54,8 @@ class ScopeFetchService(
         }
 
         logger.debug("Valid request for scope data received")
-        logger.debug("fetching ${scope.recordsCount} records for scope $scopeAddress")
-        return scope.recordsList
+        logger.debug("fetching ${scopeResponse.recordsCount} records for scope $scopeAddress")
+        return scopeResponse.recordsList
             .map { record ->
                 GatewayOuterClass.Record.newBuilder()
                     .setName(record.record.name)
