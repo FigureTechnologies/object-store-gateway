@@ -99,7 +99,7 @@ class ScopeFetchServiceTest {
         val encryptionPublicKey = encryptionKeys.values.first().publicKey
         val requesterAddress = encryptionPublicKey.getAddress(false)
 
-        every { scopePermissionsRepository.getAccessGranterAddress(scopeAddress, requesterAddress, null) } returns null
+        every { scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, requesterAddress) } returns listOf()
 
         val exception = assertThrows<AccessDeniedException> {
             service.fetchScope(scopeAddress, encryptionPublicKey, null)
@@ -132,7 +132,7 @@ class ScopeFetchServiceTest {
         val requesterAddress = encryptionPublicKey.getAddress(false)
         val granterAddress = ProvenanceKeyGenerator.generateKeyPair().public.getAddress(false)
 
-        every { scopePermissionsRepository.getAccessGranterAddress(scopeAddress, requesterAddress, null) } returns granterAddress
+        every { scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, requesterAddress) } returns listOf(granterAddress)
 
         val exception = assertThrows<AccessDeniedException> {
             service.fetchScope(scopeAddress, encryptionPublicKey, null)
