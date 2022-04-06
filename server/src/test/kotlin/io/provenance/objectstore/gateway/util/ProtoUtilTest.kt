@@ -1,6 +1,7 @@
 package io.provenance.objectstore.gateway.util
 
 import io.provenance.objectstore.gateway.GatewayOuterClass
+import io.provenance.objectstore.gateway.helpers.getValidRequest
 import io.provenance.objectstore.gateway.model.ScopePermissionsTable.scopeAddress
 import io.provenance.scope.encryption.crypto.SignerImpl
 import io.provenance.scope.encryption.ecies.ProvenanceKeyGenerator
@@ -69,23 +70,5 @@ class ProtoUtilTest {
         val valid = request.validateSignature()
 
         assertTrue(valid, "The signature should validate")
-    }
-
-    private fun KeyPair.getValidRequest(expirationSeconds: Long = 1000): GatewayOuterClass.FetchObjectRequest {
-        val params = GatewayOuterClass.FetchObjectParams.newBuilder()
-            .setScopeAddress("myCoolScope")
-            .setExpiration(OffsetDateTime.now().plusSeconds(expirationSeconds).toProtoTimestamp())
-            .build()
-
-        val signer = DirectKeyRef(this). signer().apply {
-            deterministic = true
-            hashType = SignerImpl.Companion.HashType.SHA512
-        }
-        val signature = signer.sign(params)
-
-        return GatewayOuterClass.FetchObjectRequest.newBuilder()
-            .setParams(params)
-            .setSignature(signature)
-            .build()
     }
 }

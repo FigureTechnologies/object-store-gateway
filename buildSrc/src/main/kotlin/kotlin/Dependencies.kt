@@ -1,13 +1,18 @@
 object Versions {
     const val BouncyCastle = "1.70"
+    const val Exposed = "0.37.3"
     const val Grpc = "1.45.1"
     const val GrpcSpringboot = "3.4.3"
+    const val HikariCP = "5.0.1"
     const val Jackson = "2.12.5"
     const val JacksonProtobuf = "0.9.12"
     const val Kotlin = "1.6.10"
     const val KotlinCoroutines = "1.5.2"
     const val KotlinLogging = "2.1.21"
+    const val Mockk = "1.12.3"
+    const val NexusPublishing = "1.1.0"
     const val OkHttp = "4.9.1"
+    const val Postgres = "42.3.3"
     const val Protobuf = "3.19.1"
     const val ProvenanceClient = "1.0.5"
     const val ProvenanceEventStream = "0.6.0-rc3"
@@ -17,11 +22,7 @@ object Versions {
     const val Scarlet = "0.1.12"
     const val SpringBoot = "2.6.4"
     const val SpringBootDependencyManagement = "1.0.11.RELEASE"
-    const val Exposed = "0.37.3"
-    const val Postgres = "42.3.3"
     const val SqLite = "3.36.0.3"
-    const val HikariCP = "5.0.1"
-    const val NexusPublishing = "1.1.0"
 }
 
 object Plugins {
@@ -120,6 +121,7 @@ object TestDependencies {
     // Kotlin
     object Kotlin : DependencyCollector() {
         val KotlinTest = included { DependencySpec("org.jetbrains.kotlin:kotlin-test", Versions.Kotlin) }
+        val Mockk = included { DependencySpec("io.mockk:mockk", Versions.Mockk) }
     }
 
     // Spring Boot

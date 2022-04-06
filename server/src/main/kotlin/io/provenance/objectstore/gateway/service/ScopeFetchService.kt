@@ -9,6 +9,7 @@ import io.provenance.objectstore.gateway.configuration.ProvenanceProperties
 import io.provenance.objectstore.gateway.exception.AccessDeniedException
 import io.provenance.objectstore.gateway.repository.ScopePermissionsRepository
 import io.provenance.objectstore.gateway.util.toByteString
+import io.provenance.objectstore.gateway.util.toOwnerParty
 import io.provenance.scope.encryption.model.KeyRef
 import io.provenance.scope.encryption.util.getAddress
 import io.provenance.scope.objectstore.client.CachedOsClient
@@ -39,7 +40,11 @@ class ScopeFetchService(
             requesterAddress
         } else {
             // non-scope owners need to have been granted access to this scope
-            scopePermissionsRepository.getAccessGranterAddress(scopeAddress, requesterAddress, providedGranterAddress)
+            scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, requesterAddress).apply {
+                if (providedGranterAddress != null) {
+                    filter { it == providedGranterAddress }
+                }
+            }.firstOrNull()
         }
 
         if (granterAddress == null) {
@@ -76,6 +81,4 @@ class ScopeFetchService(
                     .build()
             }
     }
-
-    private fun String.toOwnerParty() = Party.newBuilder().setAddress(this).setRole(PartyType.PARTY_TYPE_OWNER).build()
 }
