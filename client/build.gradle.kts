@@ -1,13 +1,13 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
+plugins {
+    kotlin("jvm")
+}
+
 buildscript {
     repositories {
         mavenCentral()
     }
-}
-
-plugins {
-    kotlin("jvm") version "1.6.10"
 }
 
 repositories {
@@ -21,11 +21,11 @@ tasks.withType<KotlinCompile> {
 }
 
 dependencies {
-    api(project(":proto"))
+    api(projects.proto)
     listOf(
-        *Dependencies.Grpc.all(),
-        *Dependencies.Protobuf.all(),
-        *Dependencies.BouncyCastle.all(),
-        *Dependencies.Provenance.all(),
-    ).forEach { it.implementation(this) }
+        libs.bundles.grpc,
+        libs.bundles.protobuf,
+        libs.bundles.bouncyCastle,
+        libs.bundles.provenance,
+    ).forEach(::implementation)
 }

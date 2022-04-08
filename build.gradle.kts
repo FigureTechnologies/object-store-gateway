@@ -2,12 +2,15 @@ group = "io.provenance.objectstore.gateway"
 version = project.property("version")?.takeIf { it != "unspecified" } ?: "1.0-SNAPSHOT"
 
 plugins {
-	Plugins.Idea.addTo(this)
-	Plugins.NexusPublishing.addTo(this)
-	Plugins.MavenPublish.addTo(this)
-	Plugins.Signing.addTo(this)
-
-	kotlin("jvm") version "1.6.10"
+	kotlin("jvm")
+//	kotlin("plugin.spring") version "1.6.10" apply false
+//	id("org.springframework.boot") version "2.6.4" apply false
+//	id("io.spring.dependency-management") version "1.0.11.RELEASE" apply false
+	id("idea")
+//	id("com.google.protobuf") version "0.8.18" apply false
+	id("maven-publish")
+	id("io.github.gradle-nexus.publish-plugin") version "1.1.0"
+	id("signing")
 }
 
 repositories {
@@ -29,8 +32,8 @@ nexusPublishing {
 subprojects {
 	val projectName = name
 	if (listOf("client", "proto").contains(projectName)) {
-		apply(plugin = Plugins.MavenPublish.id)
-		apply(plugin = Plugins.Signing.id)
+		apply(plugin = "maven-publish")
+		apply(plugin = "signing")
 		apply(plugin = "java-library")
 
 		java {
