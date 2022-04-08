@@ -1,10 +1,10 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    Plugins.SpringBoot.addTo(this)
-    Plugins.SpringDependencyManagement.addTo(this)
-    kotlin("jvm") version Versions.Kotlin
-    kotlin("plugin.spring") version Versions.Kotlin
+    kotlin("jvm")
+    kotlin("plugin.spring")
+    id("org.springframework.boot")
+    id("io.spring.dependency-management")
 }
 
 java.sourceCompatibility = JavaVersion.VERSION_11
@@ -32,27 +32,27 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":proto"))
+    implementation(projects.proto)
 
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
     listOf(
-        *Dependencies.BouncyCastle.all(),
-        *Dependencies.Grpc.all(),
-        *Dependencies.Jackson.all(),
-        *Dependencies.Kotlin.all(),
-        *Dependencies.Logging.all(),
-        *Dependencies.OkHttp.all(),
-        *Dependencies.Protobuf.all(),
-        *Dependencies.Provenance.all(),
-        *Dependencies.Scarlet.all(),
-        *Dependencies.SpringBoot.all(),
-        *Dependencies.Exposed.all(),
-    ).forEach { it.implementation(this) }
+        libs.bundles.bouncyCastle,
+        libs.bundles.grpc,
+        libs.bundles.jackson,
+        libs.bundles.kotlin,
+        libs.bundles.logging,
+        libs.bundles.okhttp,
+        libs.bundles.protobuf,
+        libs.bundles.provenance,
+        libs.bundles.scarlet,
+        libs.bundles.springboot,
+        libs.bundles.exposed,
+    ).forEach(::implementation)
 
     listOf(
-        *TestDependencies.Kotlin.all(),
-        *TestDependencies.SpringBoot.all()
-    ).forEach { it.testImplementation(this) }
+        libs.bundles.testKotlin,
+        libs.bundles.testSpringBoot
+    ).forEach(::testImplementation)
 }
 
 tasks.withType<KotlinCompile> {

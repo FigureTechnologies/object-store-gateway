@@ -17,8 +17,8 @@ buildscript {
 }
 
 plugins {
-    kotlin("jvm") version "1.6.10"
-    id("com.google.protobuf") version "0.8.18"
+    kotlin("jvm")
+    id("com.google.protobuf")
 }
 
 repositories {
@@ -42,10 +42,10 @@ tasks.withType<KotlinCompile> {
 dependencies {
     implementation("javax.annotation:javax.annotation-api:1.3.2")
     listOf(
-        *Dependencies.Protobuf.all(),
-        *Dependencies.Grpc.all(),
-    ).forEach { it.implementation(this) }
-    Dependencies.Provenance.ScopeSdkProto.protobuf(this)
+        libs.bundles.protobuf,
+        libs.bundles.grpc
+    ).forEach(::implementation)
+    protobuf(libs.scopeSdkProto)
 }
 
 protobuf {
