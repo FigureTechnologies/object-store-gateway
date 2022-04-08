@@ -16,6 +16,7 @@ data class EventStreamProperties(
     val epochHeight: Long,
     val enabled: Boolean,
     val blockHeightTrackingUuid: UUID,
+    val threadCount: Int = 10,
 )
 
 @ConstructorBinding
