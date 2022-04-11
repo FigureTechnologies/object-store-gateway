@@ -15,6 +15,7 @@ import io.provenance.objectstore.gateway.repository.BlockHeightRepository
 import io.provenance.objectstore.gateway.service.StreamEventHandlerService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.onCompletion
@@ -29,8 +30,10 @@ import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.ApplicationListener
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
-import java.time.Duration
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.ExperimentalTime
 
 @Component
 class EventStreamConsumer(
@@ -85,6 +88,7 @@ class EventStreamConsumer(
         }
     }
 
+    @OptIn(ExperimentalTime::class)
     private fun tryStartEventStream(
         eventStreamFn: suspend CoroutineScope.() -> Unit
     ) {
@@ -100,7 +104,7 @@ class EventStreamConsumer(
                     logger.error("EVENTSTREAM END/FAILURE {}", e.message)
                     eventStreamRunning.set(false)
                     logger.info("Waiting ${eventStreamProperties.restartDelaySeconds} seconds before reconnecting to event stream")
-                    Thread.sleep(Duration.ofSeconds(eventStreamProperties.restartDelaySeconds).toMillis())
+                    delay(eventStreamProperties.restartDelaySeconds.seconds)
                 }
             }
         }
