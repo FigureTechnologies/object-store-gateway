@@ -1,83 +1,112 @@
 package io.provenance.objectstore.gateway.components
 
+import io.provenance.eventstream.decoder.moshiDecoderAdapter
+import io.provenance.eventstream.net.okHttpNetAdapter
 import io.provenance.eventstream.stream.BlockStreamFactory
+import io.provenance.eventstream.stream.flows.blockFlow
+import io.provenance.eventstream.stream.models.extensions.dateTime
+import io.provenance.eventstream.stream.models.extensions.txData
+import io.provenance.eventstream.stream.models.extensions.txEvents
 import io.provenance.eventstream.stream.withFromHeight
 import io.provenance.eventstream.stream.withOrdered
+import io.provenance.objectstore.gateway.configuration.BeanQualifiers
+import io.provenance.objectstore.gateway.configuration.EventStreamProperties
 import io.provenance.objectstore.gateway.repository.BlockHeightRepository
 import io.provenance.objectstore.gateway.service.StreamEventHandlerService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import mu.KLogging
+import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.boot.actuate.health.Health
+import org.springframework.boot.actuate.health.HealthIndicator
+import org.springframework.boot.context.event.ApplicationReadyEvent
+import org.springframework.context.ApplicationListener
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.ExperimentalTime
 
 @Component
 class EventStreamConsumer(
-    private val blockStreamFactory: BlockStreamFactory,
     private val streamEventHandlerService: StreamEventHandlerService,
     private val blockHeightRepository: BlockHeightRepository,
-) {
+    private val eventStreamProperties: EventStreamProperties,
+    @Qualifier(BeanQualifiers.EVENT_STREAM_COROUTINE_SCOPE_QUALIFIER) private val eventStreamScope: CoroutineScope,
+): ApplicationListener<ApplicationReadyEvent>, HealthIndicator {
     private companion object: KLogging() {
         private var eventStreamRunning = AtomicBoolean(false)
         private val TX_EVENTS = setOf("wasm")
     }
 
-    @Scheduled(fixedDelay = 10_000)
-    fun listen() {
-        if (eventStreamRunning.get()) {
-            logger.debug("Event stream already running - exiting out")
-            return
+    private val decoderAdapter = moshiDecoderAdapter()
+
+    override fun onApplicationEvent(event: ApplicationReadyEvent) {
+        tryStartEventStream {
+            eventStreamLoop()
         }
+    }
 
-        eventStreamRunning.set(true)
-        logger.info("Starting up event stream")
+    override fun health(): Health = if (eventStreamRunning.get()) {
+        Health.up().build()
+    } else {
+        Health.down().build()
+    }
 
-        try {
-            runBlocking {
-                blockStreamFactory.createSource(
-                    withFromHeight(blockHeightRepository.getLastProcessedBlockHeight().also {
-                        logger.info("Streaming from height $it")
-                    }),
-                    withOrdered(true),
-                )
-                .streamBlocks()
-                .onCompletion { optionalException ->
-                    optionalException?.also {
-                        logger.error("Block stream completed with an exception", it)
-                    } ?: logger.warn("Block stream completed early")
-                    eventStreamRunning.set(false)
-                }
-                .catch { e ->
-                    logger.error("Failed on event stream processing", e)
-                    eventStreamRunning.set(false)
-                }
-                .collect { block ->
-                    if (block.height == null) {
-                        logger.error("Received block with null height")
-                        return@collect
+    private suspend fun eventStreamLoop() {
+        val netAdapter = okHttpNetAdapter(eventStreamProperties.websocketUri.toString())
+        val lastBlockProcessed = blockHeightRepository.getLastProcessedBlockHeight()
+        blockFlow(netAdapter, decoderAdapter, from = lastBlockProcessed)
+            .collect {  block ->
+                val lastProcessedHeight = blockHeightRepository.getLastProcessedBlockHeight()
+
+                block.blockResult
+                    .txEvents(block.block.header?.dateTime()) { index -> block.block.txData(index) }
+                    .filter { TX_EVENTS.contains(it.eventType) }  // these are the blocks you are looking for
+                    .forEach {
+                        streamEventHandlerService.handleEvent(it)
                     }
 
-                    val lastProcessedHeight = blockHeightRepository.getLastProcessedBlockHeight()
-
-                    if (block.txEvents.any { TX_EVENTS.contains(it.eventType) }) { // these are the blocks you are looking for
-                        block.txEvents.forEach {
-                            streamEventHandlerService.handleEvent(it)
-                        }
-                    }
-
-                    if (block.height!! < lastProcessedHeight) {
-                        logger.warn("Received lower block height than last processed (${block.height} vs. $lastProcessedHeight)")
-                    } else {
-                        blockHeightRepository.setLastProcessedBlockHeight(block.height!!)
-                    }
+                if (block.height < lastProcessedHeight) {
+                    logger.warn("Received lower block height than last processed (${block.height} vs. $lastProcessedHeight)")
+                } else {
+                    blockHeightRepository.setLastProcessedBlockHeight(block.height)
                 }
             }
+        try {
+            netAdapter.shutdown()
         } catch (e: Exception) {
-            logger.error("Event stream failed", e)
-            eventStreamRunning.set(false)
+            logger.error("Error shutting down netAdatper", e)
+        }
+    }
+
+    @OptIn(ExperimentalTime::class)
+    private fun tryStartEventStream(
+        eventStreamFn: suspend CoroutineScope.() -> Unit
+    ) {
+        logger.info("EVENTSTREAM INIT")
+        eventStreamScope.launch(Dispatchers.IO) {
+            while (true) {
+                try {
+                    logger.info("EVENTSTREAM START")
+                    eventStreamFn()
+                    logger.info("EVENTSTREAM END/SUCCESS")
+                    eventStreamRunning.set(true)
+                } catch (e: Exception) {
+                    logger.error("EVENTSTREAM END/FAILURE {}", e.message)
+                    eventStreamRunning.set(false)
+                    logger.info("Waiting ${eventStreamProperties.restartDelaySeconds} seconds before reconnecting to event stream")
+                    delay(eventStreamProperties.restartDelaySeconds.seconds)
+                }
+            }
         }
     }
 }

@@ -26,11 +26,6 @@ configurations.all {
     }
 }
 
-repositories {
-    mavenLocal()
-    mavenCentral()
-}
-
 dependencies {
     implementation(projects.proto)
 
