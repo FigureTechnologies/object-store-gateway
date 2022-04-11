@@ -10,10 +10,6 @@ buildscript {
     }
 }
 
-repositories {
-    mavenCentral()
-}
-
 tasks.withType<KotlinCompile> {
     kotlinOptions {
         jvmTarget = "11"
