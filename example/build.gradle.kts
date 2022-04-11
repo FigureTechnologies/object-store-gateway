@@ -6,11 +6,6 @@ plugins {
 
 java.sourceCompatibility = JavaVersion.VERSION_11
 
-repositories {
-    mavenLocal()
-    mavenCentral()
-}
-
 tasks.withType<KotlinCompile> {
     kotlinOptions {
         freeCompilerArgs = listOf("-Xjsr305=strict")
