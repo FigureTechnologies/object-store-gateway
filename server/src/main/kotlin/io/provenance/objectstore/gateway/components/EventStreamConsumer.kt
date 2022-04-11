@@ -29,6 +29,7 @@ import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.ApplicationListener
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
+import java.time.Duration
 import java.util.concurrent.atomic.AtomicBoolean
 
 @Component
@@ -77,20 +78,30 @@ class EventStreamConsumer(
                     blockHeightRepository.setLastProcessedBlockHeight(block.height)
                 }
             }
+        try {
+            netAdapter.shutdown()
+        } catch (e: Exception) {
+            logger.error("Error shutting down netAdatper", e)
+        }
     }
 
     private fun tryStartEventStream(
         eventStreamFn: suspend CoroutineScope.() -> Unit
     ) {
-        logger.info("EVENTSTREAM START")
+        logger.info("EVENTSTREAM INIT")
         eventStreamScope.launch(Dispatchers.IO) {
-            try {
-                eventStreamFn()
-                logger.info("EVENTSTREAM END/SUCCESS")
-                eventStreamRunning.set(true)
-            } catch (e: Exception) {
-                logger.error("EVENTSTREAM END/FAILURE {}", e.message)
-                eventStreamRunning.set(false)
+            while (true) {
+                try {
+                    logger.info("EVENTSTREAM START")
+                    eventStreamFn()
+                    logger.info("EVENTSTREAM END/SUCCESS")
+                    eventStreamRunning.set(true)
+                } catch (e: Exception) {
+                    logger.error("EVENTSTREAM END/FAILURE {}", e.message)
+                    eventStreamRunning.set(false)
+                    logger.info("Waiting ${eventStreamProperties.restartDelaySeconds} seconds before reconnecting to event stream")
+                    Thread.sleep(Duration.ofSeconds(eventStreamProperties.restartDelaySeconds).toMillis())
+                }
             }
         }
     }
