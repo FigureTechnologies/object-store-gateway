@@ -62,15 +62,15 @@ class StreamEventHandlerService(
                 return it.address
             }
 
+            scopeResponse.scope.scope.dataAccessList.firstOrNull { it.isWatchedAddress() }?.also {
+                return it
+            }
+
             scopeResponse.sessionsList
                 .flatMap { it.session.partiesList }
                 .firstOrNull { it.address.isWatchedAddress() }?.also {
                     return it.address
                 }
-
-            scopeResponse.scope.scope.dataAccessList.firstOrNull { it.isWatchedAddress() }?.also {
-                return it
-            }
         }
 
         return null
