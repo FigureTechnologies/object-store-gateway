@@ -1,6 +1,8 @@
 package io.provenance.objectstore.gateway.service
 
+import io.provenance.client.grpc.PbClient
 import io.provenance.eventstream.stream.models.TxEvent
+import io.provenance.metadata.v1.ScopeRequest
 import io.provenance.objectstore.gateway.eventstream.AssetClassificationEvent
 import io.provenance.objectstore.gateway.eventstream.ContractEvent
 import io.provenance.objectstore.gateway.extensions.checkNotNull
@@ -11,7 +13,8 @@ import org.springframework.stereotype.Service
 @Service
 class StreamEventHandlerService(
     private val accountAddresses: Set<String>,
-    private val scopePermissionsRepository: ScopePermissionsRepository
+    private val scopePermissionsRepository: ScopePermissionsRepository,
+    private val pbClient: PbClient,
 ) {
     private companion object : KLogging()
 
@@ -38,22 +41,49 @@ class StreamEventHandlerService(
             return
         }
         // only handle events onboarded by registered key
-        if (!accountAddresses.contains(event.scopeOwnerAddress)) {
+        val registeredAddress = event.findRegisteredScopeOwnerAddress()
+        if (registeredAddress == null) {
             logger.info("Skipping event of type [${event.eventType}] for unrelated scope owner [${event.scopeOwnerAddress}]")
             return
         }
         when (event.eventType) {
-            ContractEvent.ONBOARD_ASSET -> handleOnboardAsset(event)
+            ContractEvent.ONBOARD_ASSET -> handleOnboardAsset(event, registeredAddress)
             else -> throw IllegalStateException("After all event checks, an unexpected event was attempted for processing. Tx hash: [${event.sourceEvent.txHash}], event type: [${event.eventType}]")
         }
     }
 
-    private fun handleOnboardAsset(event: AssetClassificationEvent) {
+    private fun AssetClassificationEvent.findRegisteredScopeOwnerAddress(): String? {
+        if (scopeOwnerAddress.isWatchedAddress()) {
+            return scopeOwnerAddress
+        }
+
+        pbClient.metadataClient.scope(ScopeRequest.newBuilder().setScopeId(scopeAddress).setIncludeSessions(true).build()).also { scopeResponse ->
+            scopeResponse.scope.scope.ownersList.firstOrNull { it.address.isWatchedAddress() }?.also {
+                return it.address
+            }
+
+            scopeResponse.scope.scope.dataAccessList.firstOrNull { it.isWatchedAddress() }?.also {
+                return it
+            }
+
+            scopeResponse.sessionsList
+                .flatMap { it.session.partiesList }
+                .firstOrNull { it.address.isWatchedAddress() }?.also {
+                    return it.address
+                }
+        }
+
+        return null
+    }
+
+    private fun String?.isWatchedAddress(): Boolean = this != null && accountAddresses.contains(this)
+
+    private fun handleOnboardAsset(event: AssetClassificationEvent, registeredAddress: String) {
         // fetch scope and add all hashes to lookup? Or just add scope to lookup?
         val logPrefix = "[ONBOARD ASSET | Tx: ${event.sourceEvent.txHash}]:"
         val scopeAddress = event.scopeAddress.checkNotNull { "$logPrefix Expected the onboard asset event to include a scope address" }
 
-        logger.info("$logPrefix Adding verifier to access list for scope $scopeAddress")
-        scopePermissionsRepository.addAccessPermission(event.scopeAddress!!, event.verifierAddress!!, event.scopeOwnerAddress!!)
+        logger.info("$logPrefix Adding verifier to access list for scope $scopeAddress with granter $registeredAddress")
+        scopePermissionsRepository.addAccessPermission(event.scopeAddress!!, event.verifierAddress!!, registeredAddress)
     }
 }
