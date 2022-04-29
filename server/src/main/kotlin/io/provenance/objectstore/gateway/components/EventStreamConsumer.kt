@@ -3,7 +3,7 @@ package io.provenance.objectstore.gateway.components
 import io.provenance.eventstream.decoder.moshiDecoderAdapter
 import io.provenance.eventstream.net.okHttpNetAdapter
 import io.provenance.eventstream.stream.BlockStreamFactory
-import io.provenance.eventstream.stream.flows.blockFlow
+import io.provenance.eventstream.stream.flows.blockDataFlow
 import io.provenance.eventstream.stream.models.extensions.dateTime
 import io.provenance.eventstream.stream.models.extensions.txData
 import io.provenance.eventstream.stream.models.extensions.txEvents
@@ -64,7 +64,7 @@ class EventStreamConsumer(
     private suspend fun eventStreamLoop() {
         val netAdapter = okHttpNetAdapter(eventStreamProperties.websocketUri.toString())
         val lastBlockProcessed = blockHeightRepository.getLastProcessedBlockHeight()
-        blockFlow(netAdapter, decoderAdapter, from = lastBlockProcessed)
+        blockDataFlow(netAdapter, decoderAdapter, from = lastBlockProcessed)
             .collect {  block ->
                 val lastProcessedHeight = blockHeightRepository.getLastProcessedBlockHeight()
 
