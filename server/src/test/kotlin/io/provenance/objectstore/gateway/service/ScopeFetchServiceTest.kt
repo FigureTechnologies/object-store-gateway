@@ -13,7 +13,6 @@ import io.provenance.metadata.v1.RecordWrapper
 import io.provenance.metadata.v1.ScopeResponse
 import io.provenance.objectstore.gateway.configuration.ProvenanceProperties
 import io.provenance.objectstore.gateway.exception.AccessDeniedException
-import io.provenance.objectstore.gateway.model.ScopePermissionsTable.scopeAddress
 import io.provenance.objectstore.gateway.repository.ScopePermissionsRepository
 import io.provenance.objectstore.gateway.util.toByteString
 import io.provenance.objectstore.gateway.util.toOwnerParty
@@ -50,7 +49,7 @@ class ScopeFetchServiceTest {
         }
     }.toMap()
 
-    fun generateScope(numRecords: Int) = ScopeResponse.newBuilder()
+    fun generateScope(numRecords: Int, ownerKey: Pair<String, DirectKeyRef> = scopeOwnerKey) = ScopeResponse.newBuilder()
         .addAllRecords((1..numRecords).map {
             val prefix = "record$it"
             RecordWrapper.newBuilder()
@@ -71,8 +70,8 @@ class ScopeFetchServiceTest {
         })
         .apply {
             scopeBuilder.scopeBuilder
-                .addOwners(scopeOwnerKey.first.toOwnerParty())
-                .setValueOwnerAddress(scopeOwnerKey.first)
+                .addOwners(ownerKey.first.toOwnerParty())
+                .setValueOwnerAddress(ownerKey.first)
         }
         .build()
 
@@ -110,7 +109,7 @@ class ScopeFetchServiceTest {
     }
 
     @Test
-    fun `fetchScope should allow access for a scope owner even when no scope access is set up`() {
+    fun `fetchScope should allow access for a scope owner even when no scope access is set up and owner is in encryption keys`() {
         val encryptionPublicKey = scopeOwnerKey.second.publicKey
 
         val records = service.fetchScope(scopeAddress, encryptionPublicKey, null)
@@ -140,5 +139,31 @@ class ScopeFetchServiceTest {
 
         assertNotNull(exception.status.description)
         assertContains(exception.status.description!!, "Encryption key for granter $granterAddress not found", message = "The request should be denied for lack of configured key")
+    }
+
+    @Test
+    fun `fetchScope should deny access for a scope owner with no encryption key and no granted access`() {
+        val (scopeOwnerAddress, scopeOwnerKeyRef) = generateEncryptionKeys(1).entries.first()
+        val scopeResponse = generateScope(2, ownerKey = scopeOwnerAddress to scopeOwnerKeyRef)
+        every { pbClient.metadataClient.scope(any()) } returns scopeResponse
+        every { scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, scopeOwnerAddress) } returns emptyList()
+        val exception = assertThrows<AccessDeniedException> {
+            service.fetchScope(scopeAddress, scopeOwnerKeyRef.publicKey, null)
+        }
+        assertNotNull(exception.status.description)
+        assertContains(exception.status.description!!, "Scope access not granted to $scopeOwnerAddress")
+    }
+
+    @Test
+    fun `fetchScope should deny access for an encryption key that does not own the scope and no granted access`() {
+        val encryptionKeyPair = encryptionKeys.entries.first().toPair()
+        val scopeResponse = generateScope(2, ownerKey = generateEncryptionKeys(1).entries.first().toPair())
+        every { pbClient.metadataClient.scope(any()) } returns scopeResponse
+        every { scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, encryptionKeyPair.first) } returns emptyList()
+        val exception = assertThrows<AccessDeniedException> {
+            service.fetchScope(scopeAddress, encryptionKeyPair.second.publicKey, null)
+        }
+        assertNotNull(exception.status.description)
+        assertContains(exception.status.description!!, "Scope access not granted to ${encryptionKeyPair.first}")
     }
 }
