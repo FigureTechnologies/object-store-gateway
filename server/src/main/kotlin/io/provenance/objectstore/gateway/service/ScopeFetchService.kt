@@ -1,8 +1,6 @@
 package io.provenance.objectstore.gateway.service
 
 import io.provenance.client.grpc.PbClient
-import io.provenance.metadata.v1.Party
-import io.provenance.metadata.v1.PartyType
 import io.provenance.metadata.v1.ScopeRequest
 import io.provenance.objectstore.gateway.GatewayOuterClass
 import io.provenance.objectstore.gateway.configuration.ProvenanceProperties
@@ -34,29 +32,29 @@ class ScopeFetchService(
 
         val scopeResponse = pbClient.metadataClient.scope(ScopeRequest.newBuilder().setScopeId(scopeAddress).setIncludeRecords(true).build())
 
-        val granterAddress = if (scopeResponse.scope.scope.ownersList.contains(requesterAddress.toOwnerParty()) || scopeResponse.scope.scope.valueOwnerAddress == requesterAddress) {
+        // If the requester is registered in the service and they own the scope, there's no reason they can't decrypt their own
+        // data
+        val encryptionKey = encryptionKeys[requesterAddress]
             // a scope owner can request their own scope data
-            logger.debug("Received request for scope data from scope owner [scope: $scopeAddress, owner: $requesterAddress]")
-            requesterAddress
-        } else {
-            // non-scope owners need to have been granted access to this scope
-            scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, requesterAddress).apply {
-                if (providedGranterAddress != null) {
-                    filter { it == providedGranterAddress }
-                }
-            }.firstOrNull()
-        }
-
-        if (granterAddress == null) {
-            logger.info("Request for scope data without access received")
-            throw AccessDeniedException("Scope access not granted to $requesterAddress")
-        }
-
-        val encryptionKey = encryptionKeys[granterAddress]
-        if (encryptionKey == null) {
-            logger.warn("Valid request for scope data with an unknown key received")
-            throw AccessDeniedException("Encryption key for granter $granterAddress not found")
-        }
+            ?.takeIf { scopeResponse.scope.scope.ownersList.contains(requesterAddress.toOwnerParty()) || scopeResponse.scope.scope.valueOwnerAddress == requesterAddress }
+            ?.also { logger.debug("Received request for scope data from scope owner [scope: $scopeAddress, owner: $requesterAddress]") }
+            // If the requester does not own the scope and/or their encryption key is not stored, attempt to find an access grant
+            ?: run {
+                val granterAddress = scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, requesterAddress)
+                    // If a granter is provided and not in the list of stored granters, the request is invalid
+                    .takeIf { addresses -> providedGranterAddress == null || providedGranterAddress in addresses }
+                    // Always use the provided granter if it was specified, otherwise just use any of the available granters
+                    ?.let { addresses -> providedGranterAddress ?: addresses.firstOrNull() }
+                    ?: run {
+                        logger.info("Request for scope data without access received")
+                        throw AccessDeniedException("Scope access not granted to $requesterAddress")
+                    }
+                encryptionKeys[granterAddress]
+                    ?: run {
+                        logger.warn("Valid request for scope data with an unknown key received")
+                        throw AccessDeniedException("Encryption key for granter $granterAddress not found")
+                    }
+            }
 
         logger.debug("Valid request for scope data received")
         logger.debug("fetching ${scopeResponse.recordsCount} records for scope $scopeAddress")
