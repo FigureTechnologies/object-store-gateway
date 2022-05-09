@@ -4,7 +4,8 @@ This application provides a mechanism for fetching permissioned objects stored a
 [Provenance Encrypted Object Store](https://github.com/provenance-io/object-store) and returning them in a raw, decrypted
 format.
 
-This service exposes one endpoint, used for fetching an object. In order for an object to be fetched, the following criteria must be met.
+This service exposes one endpoint, used for fetching all records within a scope.
+In order for this data to be fetched, the following criteria must be met.
 1. The request must have a valid, non-expired signature
 2. The requester address/key must meet one of the following requirements:
    1. Be an owner of the scope being requested
