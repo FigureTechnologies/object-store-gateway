@@ -33,7 +33,7 @@ class JwtVerificationService {
                 .build()
                 .verify(jwt)
         } catch (e: JWTVerificationException) {
-            throw JwtValidationException(e.message)
+            throw JwtValidationException(e.message, e)
         }
 
         if (!verified.claims.containsKey(Constants.JWT_EXPIRATION_KEY)) {
