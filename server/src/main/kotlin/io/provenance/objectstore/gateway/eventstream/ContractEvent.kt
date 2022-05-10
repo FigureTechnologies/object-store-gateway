@@ -10,6 +10,7 @@ enum class ContractEvent(val contractName: String, val isHandled: Boolean = fals
     TOGGLE_ASSET_DEFINITION("toggle_asset_definition"),
     ADD_ASSET_VERIFIER("add_asset_verifier"),
     UPDATE_ASSET_VERIFIER("update_asset_verifier"),
+    BIND_CONTRACT_ALIAS("bind_contract_alias"),
     ;
 
     companion object {
