@@ -18,10 +18,12 @@ tasks.withType<KotlinCompile> {
 
 dependencies {
     api(projects.proto)
+    implementation(projects.shared)
     listOf(
         libs.bundles.grpc,
         libs.bundles.protobuf,
         libs.bundles.bouncyCastle,
         libs.bundles.provenance,
+        libs.bundles.jwt,
     ).forEach(::implementation)
 }

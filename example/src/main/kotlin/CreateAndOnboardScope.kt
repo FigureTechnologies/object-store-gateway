@@ -213,10 +213,10 @@ fun main() {
     val validatorSigner = WalletSigner(NetworkType.TESTNET, validatorMnemonic)
     println("validator address from mnemonic: ${validatorSigner.address()}")
 
-    GatewayClient(ClientConfig(URI("grpc://localhost:5002"))).use { gatewayClient ->
+    GatewayClient(ClientConfig(URI("grpc://localhost:8080"), false)).use { gatewayClient ->
         while (true) {
             try {
-                val response = gatewayClient.requestScopeData(scopeAddress, DirectKeyRef(validatorSigner.account.keyPair.toJavaECKeyPair()))
+                val response = gatewayClient.requestScopeData(scopeAddress, validatorSigner.account.keyPair.toJavaECKeyPair())
 
                 println("Fetched records $response")
                 break

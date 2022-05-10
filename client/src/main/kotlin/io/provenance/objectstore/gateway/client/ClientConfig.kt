@@ -8,6 +8,7 @@ import java.util.concurrent.TimeUnit
 
 data class ClientConfig(
     val gatewayUri: URI,
+    val mainNet: Boolean,
 
     // grpc properties
     val inboundMessageSize: Int = 40 * 1024 * 1024, // ~ 20 MB
