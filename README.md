@@ -4,6 +4,12 @@ This application provides a mechanism for fetching permissioned objects stored a
 [Provenance Encrypted Object Store](https://github.com/provenance-io/object-store) and returning them in a raw, decrypted
 format.
 
+## Authentication
+Requests to this service must include a grpc metadata header named "Authorization" containing a valid, SECP256K1 signed Provenance
+jwt (containing the matching public key/address that was used to sign the jwt, must have a valid, future expiration [`exp`] claim).
+Once the identity of the caller is determined/verified via the jwt, authorization for the requested data is performed according to the rules below
+
+## Authorization
 This service exposes one endpoint, used for fetching all records within a scope.
 In order for this data to be fetched, the following criteria must be met.
 1. The request must have a valid, non-expired signature
@@ -21,3 +27,7 @@ the service and is in the audience on the object in object store.
 
 Note that the data returned from this service is raw bytes, and will have to be interpreted in whatever data format is
 expected.
+
+## Client
+There is a client library provided to help facilitate making requests to this service. This can be used to construct a
+jwt for requests to facilitate authentication if you do not already have another means of generating a jwt.
