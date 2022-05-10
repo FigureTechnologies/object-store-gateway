@@ -6,6 +6,7 @@ grpcSpringboot = "3.4.3"
 hikariCP = "5.0.1"
 jackson = "2.12.5"
 jacksonProtobuf = "0.9.12"
+jwt = "3.19.2"
 kotlin = "1.6.10"
 kotlinCoroutines = "1.5.2"
 kotlinLogging = "2.1.21"
@@ -69,6 +70,7 @@ sqLite = { module = "org.xerial:sqlite-jdbc", version.ref = "sqLite" }
 kotlinTest = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 starterTest = { module = "org.springframework.boot:spring-boot-starter-test" }
+javaJwt = { module = "com.auth0:java-jwt", version.ref = "jwt" }
 
 [bundles]
 bouncyCastle = ["bcProv"]
@@ -84,3 +86,4 @@ springboot = ["springBootAutoConfigure", "springBootStarter", "springBootStarter
 exposed = ["exposedCore", "exposedDao", "exposedJdbc", "postgres", "hikariCP", "sqLite"]
 testKotlin = ["kotlinTest", "mockk"]
 testSpringBoot = ["starterTest"]
+jwt = ["javaJwt"]

@@ -2,23 +2,13 @@ syntax = "proto3";
 
 package io.provenance.objectstore.gateway;
 
-import "common.proto";
-import "google/protobuf/timestamp.proto";
-
 service Gateway {
   rpc FetchObject (FetchObjectRequest) returns (FetchObjectResponse) {};
 }
 
 message FetchObjectRequest {
-  FetchObjectParams params = 1;
-  io.provenance.scope.Signature signature = 2;
-}
-
-message FetchObjectParams {
   string scope_address = 1;
-  string granter_address = 3; // optional
-
-  google.protobuf.Timestamp expiration = 2;
+  string granter_address = 2; // optional
 }
 
 message FetchObjectResponse {

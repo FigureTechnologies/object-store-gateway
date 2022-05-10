@@ -4,6 +4,7 @@ include("server")
 include("proto")
 include("example")
 include("client")
+include("shared")
 
 pluginManagement {
     repositories {
