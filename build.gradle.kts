@@ -31,7 +31,7 @@ nexusPublishing {
 
 subprojects {
 	val projectName = name
-	if (listOf("client", "proto").contains(projectName)) {
+	if (listOf("client", "proto", "shared").contains(projectName)) {
 		apply(plugin = "maven-publish")
 		apply(plugin = "signing")
 		apply(plugin = "java-library")
