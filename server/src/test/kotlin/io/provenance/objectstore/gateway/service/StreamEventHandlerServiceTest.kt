@@ -107,7 +107,7 @@ class StreamEventHandlerServiceTest {
             (ContractKey.SCOPE_ADDRESS.eventName to scopeAddress).toEvent(),
             (ContractKey.SCOPE_OWNER_ADDRESS.eventName to onboardingOwnerAddress).toEvent(),
             (ContractKey.VERIFIER_ADDRESS.eventName to verifierAddress).toEvent(),
-        ), 1000L, "nhash"))
+        ), 1000L, "nhash", "test event"))
     }
 
     private fun String.base64Encode(): String = Base64.getEncoder().encodeToString(toByteArray())
