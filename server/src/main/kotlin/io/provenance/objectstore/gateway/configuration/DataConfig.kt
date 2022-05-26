@@ -58,13 +58,20 @@ class DataConfig {
 
 @Component
 class DataMigration(dataSource: DataSource, databaseProperties: DatabaseProperties) {
+    companion object : KLogging()
+
     init {
         Database.connect(dataSource)
         Database.registerDialect("pgsql") { PostgreSQLDialect() }
         Database.registerDialect("sqlite") { SQLiteDialect() }
         transaction {
             if (databaseProperties.type == "postgresql") {
-                SchemaUtils.createSchema(Schema(databaseProperties.schema))
+                try {
+                    SchemaUtils.createSchema(Schema(databaseProperties.schema))
+                } catch (e: Exception) {
+                    logger.info("Exception creating schema [${databaseProperties.schema}]: ${e.message}")
+                    logger.info("attempting to continue as this may be just a permissions issue (the schema may already exist or you might need to create it manually)")
+                }
             }
             SchemaUtils.create(
                 ScopePermissionsTable,
