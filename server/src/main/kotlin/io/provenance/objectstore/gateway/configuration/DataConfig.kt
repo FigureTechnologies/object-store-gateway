@@ -73,6 +73,8 @@ class DataMigration(dataSource: DataSource, databaseProperties: DatabaseProperti
                     logger.info("attempting to continue as this may be just a permissions issue (the schema may already exist or you might need to create it manually)")
                 }
             }
+        }
+        transaction {
             SchemaUtils.create(
                 ScopePermissionsTable,
                 BlockHeightTable,
