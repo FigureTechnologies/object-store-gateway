@@ -9,7 +9,7 @@ import java.security.interfaces.ECPublicKey
 
 class KeyRefSecP256K1Algorithm(
     keyRef: KeyRef,
-): Algorithm("ES256K", "A SecP256K1 algorithm implementation for use with a Provenance p8e scope sdk KeyRef") {
+) : Algorithm("ES256K", "A SecP256K1 algorithm implementation for use with a Provenance p8e scope sdk KeyRef") {
     private val signatureConverter = DERtoJOSEConverter(32)
     private val signer: SignerImpl = keyRef.signer().apply {
         hashType = SignerImpl.Companion.HashType.SHA256

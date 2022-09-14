@@ -54,10 +54,11 @@ class StreamEventHandlerServiceTest {
                     .addOwners(Party.newBuilder().setRole(PartyType.PARTY_TYPE_OWNER).setAddress(onboardingOwnerAddress))
                     .addOwners(Party.newBuilder().setRole(PartyType.PARTY_TYPE_AFFILIATE).setAddress(otherOwnerAddress))
                     .addDataAccess(dataAccessAddress)
-            }.addSessions(SessionWrapper.newBuilder()
-                .apply {
-                    sessionBuilder.addParties(Party.newBuilder().setRoleValue(PartyType.PARTY_TYPE_CUSTODIAN_VALUE).setAddress(sessionPartyAddress))
-                }
+            }.addSessions(
+                SessionWrapper.newBuilder()
+                    .apply {
+                        sessionBuilder.addParties(Party.newBuilder().setRoleValue(PartyType.PARTY_TYPE_CUSTODIAN_VALUE).setAddress(sessionPartyAddress))
+                    }
             )
             .build()
 
@@ -101,13 +102,19 @@ class StreamEventHandlerServiceTest {
     }
 
     private fun submitEvent() {
-        service.handleEvent(TxEvent(10, OffsetDateTime.now(), "txHash", "wasm", listOf(
-            (ContractKey.EVENT_TYPE.eventName to "onboard_asset").toEvent(),
-            (ContractKey.ASSET_TYPE.eventName to "payable").toEvent(),
-            (ContractKey.SCOPE_ADDRESS.eventName to scopeAddress).toEvent(),
-            (ContractKey.SCOPE_OWNER_ADDRESS.eventName to onboardingOwnerAddress).toEvent(),
-            (ContractKey.VERIFIER_ADDRESS.eventName to verifierAddress).toEvent(),
-        ), 1000L, "nhash", "test event"))
+        service.handleEvent(
+            TxEvent(
+                10, OffsetDateTime.now(), "txHash", "wasm",
+                listOf(
+                    (ContractKey.EVENT_TYPE.eventName to "onboard_asset").toEvent(),
+                    (ContractKey.ASSET_TYPE.eventName to "payable").toEvent(),
+                    (ContractKey.SCOPE_ADDRESS.eventName to scopeAddress).toEvent(),
+                    (ContractKey.SCOPE_OWNER_ADDRESS.eventName to onboardingOwnerAddress).toEvent(),
+                    (ContractKey.VERIFIER_ADDRESS.eventName to verifierAddress).toEvent(),
+                ),
+                1000L, "nhash", "test event"
+            )
+        )
     }
 
     private fun String.base64Encode(): String = Base64.getEncoder().encodeToString(toByteArray())

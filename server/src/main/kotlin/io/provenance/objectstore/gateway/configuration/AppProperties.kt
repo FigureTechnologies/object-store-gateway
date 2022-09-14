@@ -58,5 +58,6 @@ data class DatabaseProperties(
 @ConstructorBinding
 @ConfigurationProperties(prefix = "contract")
 data class ContractProperties(
-    val address: String,
+    val address: String? = null,
+    val name: String,
 )

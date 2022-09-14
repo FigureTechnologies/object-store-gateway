@@ -4,12 +4,12 @@ import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.auth0.jwt.exceptions.JWTVerificationException
 import com.auth0.jwt.interfaces.DecodedJWT
-import org.springframework.stereotype.Service
-import java.security.PublicKey
 import io.provenance.objectstore.gateway.exception.JwtValidationException
 import io.provenance.scope.encryption.ecies.ECUtils
 import io.provenance.scope.encryption.util.getAddress
 import io.provenance.scope.objectstore.util.base64Decode
+import org.springframework.stereotype.Service
+import java.security.PublicKey
 import java.security.interfaces.ECPublicKey
 
 data class VerificationResult(val address: String, val publicKey: PublicKey)

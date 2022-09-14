@@ -8,10 +8,12 @@ import io.provenance.objectstore.gateway.eventstream.ContractEvent
 import io.provenance.objectstore.gateway.extensions.checkNotNull
 import io.provenance.objectstore.gateway.repository.ScopePermissionsRepository
 import mu.KLogging
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Service
 
 @Service
 class StreamEventHandlerService(
+    @Qualifier("contractAddress") private val contractAddress: String,
     private val accountAddresses: Set<String>,
     private val scopePermissionsRepository: ScopePermissionsRepository,
     private val pbClient: PbClient,
@@ -29,9 +31,14 @@ class StreamEventHandlerService(
             logger.debug("Skipping unrelated wasm event with tx hash [${event.sourceEvent.txHash}]")
             return
         }
-        // Only handle events
+        // Only regard expected event types
         if (event.eventType !in ContractEvent.HANDLED_EVENTS) {
             logger.info("Skipping unsupported event type [${event.eventType}] from asset classification contract")
+            return
+        }
+        // Only process events related to the configured contract address
+        if (event.contractAddress != contractAddress) {
+            logger.info("This gateway only handles events for contract [$contractAddress] - skipping event from contract [${event.contractAddress}]")
             return
         }
         // This will commonly happen - the contract emits events that don't target the verifier at all, but they'll

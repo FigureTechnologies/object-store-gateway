@@ -5,7 +5,6 @@ import io.provenance.eventstream.stream.models.Event
 import io.provenance.eventstream.stream.models.TxEvent
 import mu.KLogging
 
-
 class AssetClassificationEvent(val sourceEvent: TxEvent) {
     private companion object : KLogging()
 
@@ -25,7 +24,7 @@ class AssetClassificationEvent(val sourceEvent: TxEvent) {
         null
     }
 
-
+    val contractAddress: String? by lazy { this.getEventStringValue(ContractKey.CONTRACT_ADDRESS) }
     val eventType: ContractEvent? by lazy { this.getEventValue(ContractKey.EVENT_TYPE) { ContractEvent.forContractName(it) } }
     val assetType: String? by lazy { this.getEventStringValue(ContractKey.ASSET_TYPE) }
     val scopeAddress: String? by lazy { this.getEventStringValue(ContractKey.SCOPE_ADDRESS) }
@@ -52,9 +51,9 @@ class AssetClassificationEvent(val sourceEvent: TxEvent) {
     }
 
     override fun toString(): String = "AssetClassificationEvent[" +
-            "eventType=$eventType, " +
-            "assetType=$assetType, " +
-            "scopeAddress=$scopeAddress, " +
-            "verifierAddress=$verifierAddress, " +
-            "newValue=$newValue]"
+        "eventType=$eventType, " +
+        "assetType=$assetType, " +
+        "scopeAddress=$scopeAddress, " +
+        "verifierAddress=$verifierAddress, " +
+        "newValue=$newValue]"
 }

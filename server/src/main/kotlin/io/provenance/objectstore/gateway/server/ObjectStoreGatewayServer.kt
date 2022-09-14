@@ -12,7 +12,7 @@ import org.lognet.springboot.grpc.GRpcService
 @GRpcService(interceptors = [JwtServerInterceptor::class])
 class ObjectStoreGatewayServer(
     private val scopeFetchService: ScopeFetchService,
-): GatewayGrpc.GatewayImplBase() {
+) : GatewayGrpc.GatewayImplBase() {
 
     companion object : KLogging()
 
@@ -21,10 +21,11 @@ class ObjectStoreGatewayServer(
         responseObserver: StreamObserver<GatewayOuterClass.FetchObjectResponse>
     ) {
         scopeFetchService.fetchScope(request.scopeAddress, publicKey(), request.granterAddress.takeIf { it.isNotBlank() }).let {
-            responseObserver.onNext(GatewayOuterClass.FetchObjectResponse.newBuilder()
-                .setScopeId(request.scopeAddress)
-                .addAllRecords(it)
-                .build()
+            responseObserver.onNext(
+                GatewayOuterClass.FetchObjectResponse.newBuilder()
+                    .setScopeId(request.scopeAddress)
+                    .addAllRecords(it)
+                    .build()
             )
         }
         responseObserver.onCompleted()

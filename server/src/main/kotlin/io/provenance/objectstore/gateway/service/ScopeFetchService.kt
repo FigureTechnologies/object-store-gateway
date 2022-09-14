@@ -62,20 +62,24 @@ class ScopeFetchService(
             .map { record ->
                 GatewayOuterClass.Record.newBuilder()
                     .setName(record.record.name)
-                    .addAllInputs(record.record.inputsList.map {
-                        GatewayOuterClass.RawObject.newBuilder()
-                            .setHash(it.hash)
-                            .setType(it.typeName)
-                            .setObjectBytes(objectStoreClient.getJar(it.hash.base64Decode(), encryptionKey).get().readAllBytes().toByteString())
-                            .build()
-                    })
-                    .addAllOutputs(record.record.outputsList.map {
-                        GatewayOuterClass.RawObject.newBuilder()
-                            .setHash(it.hash)
-                            .setType(record.record.resultType())
-                            .setObjectBytes(objectStoreClient.getJar(it.hash.base64Decode(), encryptionKey).get().readAllBytes().toByteString())
-                            .build()
-                    })
+                    .addAllInputs(
+                        record.record.inputsList.map {
+                            GatewayOuterClass.RawObject.newBuilder()
+                                .setHash(it.hash)
+                                .setType(it.typeName)
+                                .setObjectBytes(objectStoreClient.getJar(it.hash.base64Decode(), encryptionKey).get().readAllBytes().toByteString())
+                                .build()
+                        }
+                    )
+                    .addAllOutputs(
+                        record.record.outputsList.map {
+                            GatewayOuterClass.RawObject.newBuilder()
+                                .setHash(it.hash)
+                                .setType(record.record.resultType())
+                                .setObjectBytes(objectStoreClient.getJar(it.hash.base64Decode(), encryptionKey).get().readAllBytes().toByteString())
+                                .build()
+                        }
+                    )
                     .build()
             }
     }

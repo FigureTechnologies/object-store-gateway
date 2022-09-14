@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service
 @Service
 class JwtServerInterceptor(
     private val verifier: JwtVerificationService
-): ServerInterceptor {
+) : ServerInterceptor {
     override fun <ReqT : Any?, RespT : Any?> interceptCall(
         call: ServerCall<ReqT, RespT>,
         headers: Metadata,
@@ -22,7 +22,7 @@ class JwtServerInterceptor(
         val jwtString = headers[Constants.JWT_GRPC_HEADER_KEY]
         if (jwtString == null) {
             call.close(Status.UNAUTHENTICATED.withDescription("JWT is missing from Metadata"), headers)
-            return object: ServerCall.Listener<ReqT>() {}
+            return object : ServerCall.Listener<ReqT>() {}
         }
 
         val verificationResult = verifier.verifyJwtString(jwtString)
