@@ -1,6 +1,5 @@
 package io.provenance.objectstore.gateway
 
-import io.provenance.objectstore.gateway.configuration.ContractProperties
 import io.provenance.objectstore.gateway.configuration.DatabaseProperties
 import io.provenance.objectstore.gateway.configuration.EventStreamProperties
 import io.provenance.objectstore.gateway.configuration.ObjectStoreProperties
@@ -16,7 +15,6 @@ import org.springframework.scheduling.annotation.EnableScheduling
         EventStreamProperties::class,
         ObjectStoreProperties::class,
         ProvenanceProperties::class,
-        ContractProperties::class,
         DatabaseProperties::class,
     ]
 )

@@ -5,6 +5,7 @@ import io.provenance.eventstream.stream.models.TxEvent
 import io.provenance.metadata.v1.ScopeRequest
 import io.provenance.objectstore.gateway.eventstream.AssetClassificationEvent
 import io.provenance.objectstore.gateway.eventstream.ContractEvent
+import io.provenance.objectstore.gateway.eventstream.GatewayGrantEvent
 import io.provenance.objectstore.gateway.extensions.checkNotNull
 import io.provenance.objectstore.gateway.repository.ScopePermissionsRepository
 import mu.KLogging
@@ -13,15 +14,28 @@ import org.springframework.stereotype.Service
 
 @Service
 class StreamEventHandlerService(
-    @Qualifier("contractAddress") private val contractAddress: String,
     private val accountAddresses: Set<String>,
     private val scopePermissionsRepository: ScopePermissionsRepository,
     private val pbClient: PbClient,
 ) {
-    private companion object : KLogging()
+    private companion object : KLogging() {
+
+        private const val GATEWAY_REGISTRATION_ATTRIBUTE: String = "object_store_gateway_grant_address"
+    }
 
     fun handleEvent(event: TxEvent) {
-        handleEvent(AssetClassificationEvent(event))
+        // Try first to intercept incoming events as Gateway Grant events, but fallback to asset classification if
+        // the event does not fit the structure
+        GatewayGrantEvent.fromEventOrNull(event)
+            ?.also(::handleGatewayGrant)
+            ?: handleEvent(AssetClassificationEvent(event))
+    }
+
+    fun handleGatewayGrant(gatewayGrant: GatewayGrantEvent) {
+        // TODO: Steps:
+        // 1. Pull scope down and verify that the scope is associated with one of the registered private keys in the app
+        // 2. Decode signers from the tx and ensure that the signer owns the associated scope
+        // 3. PARTY TIME ADD ACCESS FOR THE GRANTED ADDRESS
     }
 
     fun handleEvent(event: AssetClassificationEvent) {
@@ -34,11 +48,6 @@ class StreamEventHandlerService(
         // Only regard expected event types
         if (event.eventType !in ContractEvent.HANDLED_EVENTS) {
             logger.info("Skipping unsupported event type [${event.eventType}] from asset classification contract")
-            return
-        }
-        // Only process events related to the configured contract address
-        if (event.contractAddress != contractAddress) {
-            logger.info("This gateway only handles events for contract [$contractAddress] - skipping event from contract [${event.contractAddress}]")
             return
         }
         // This will commonly happen - the contract emits events that don't target the verifier at all, but they'll

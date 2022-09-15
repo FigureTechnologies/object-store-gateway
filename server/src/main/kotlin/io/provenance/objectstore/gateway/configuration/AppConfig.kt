@@ -2,7 +2,6 @@ package io.provenance.objectstore.gateway.configuration
 
 import io.provenance.client.grpc.GasEstimationMethod
 import io.provenance.client.grpc.PbClient
-import io.provenance.client.protobuf.extensions.resolveAddressForName
 import io.provenance.scope.encryption.model.DirectKeyRef
 import io.provenance.scope.encryption.model.KeyRef
 import io.provenance.scope.encryption.util.getAddress
@@ -38,10 +37,4 @@ class AppConfig {
 
     @Bean
     fun accountAddresses(encryptionKeys: Map<String, KeyRef>): Set<String> = encryptionKeys.keys
-
-    @Bean(name = ["contractAddress"])
-    fun contractAddress(
-        contractProperties: ContractProperties,
-        pbClient: PbClient,
-    ): String = contractProperties.address ?: pbClient.nameClient.resolveAddressForName(contractProperties.name)
 }

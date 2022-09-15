@@ -1,7 +1,6 @@
 package io.provenance.objectstore.gateway.eventstream
 
 enum class ContractKey(val eventName: String) {
-    CONTRACT_ADDRESS("_contract_address"),
     EVENT_TYPE("asset_event_type"),
     ASSET_TYPE("asset_type"),
     SCOPE_ADDRESS("asset_scope_address"),
