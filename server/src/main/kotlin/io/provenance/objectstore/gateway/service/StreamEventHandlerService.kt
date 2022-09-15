@@ -9,7 +9,6 @@ import io.provenance.objectstore.gateway.eventstream.GatewayGrantEvent
 import io.provenance.objectstore.gateway.extensions.checkNotNull
 import io.provenance.objectstore.gateway.repository.ScopePermissionsRepository
 import mu.KLogging
-import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Service
 
 @Service
