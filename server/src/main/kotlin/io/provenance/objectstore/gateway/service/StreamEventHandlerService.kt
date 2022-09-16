@@ -1,26 +1,31 @@
 package io.provenance.objectstore.gateway.service
 
+import cosmos.crypto.secp256k1.Keys.PubKey
+import cosmos.tx.v1beta1.ServiceOuterClass.GetTxRequest
 import io.provenance.client.grpc.PbClient
 import io.provenance.eventstream.stream.models.TxEvent
 import io.provenance.metadata.v1.ScopeRequest
+import io.provenance.metadata.v1.ScopeResponse
+import io.provenance.objectstore.gateway.configuration.ProvenanceProperties
 import io.provenance.objectstore.gateway.eventstream.AssetClassificationEvent
 import io.provenance.objectstore.gateway.eventstream.ContractEvent
 import io.provenance.objectstore.gateway.eventstream.GatewayGrantEvent
 import io.provenance.objectstore.gateway.extensions.checkNotNull
 import io.provenance.objectstore.gateway.repository.ScopePermissionsRepository
+import io.provenance.scope.encryption.ecies.ECUtils
+import io.provenance.scope.encryption.util.getAddress
 import mu.KLogging
 import org.springframework.stereotype.Service
+import java.security.PublicKey
 
 @Service
 class StreamEventHandlerService(
     private val accountAddresses: Set<String>,
     private val scopePermissionsRepository: ScopePermissionsRepository,
     private val pbClient: PbClient,
+    private val provenanceProperties: ProvenanceProperties,
 ) {
-    private companion object : KLogging() {
-
-        private const val GATEWAY_REGISTRATION_ATTRIBUTE: String = "object_store_gateway_grant_address"
-    }
+    private companion object : KLogging()
 
     fun handleEvent(event: TxEvent) {
         // Try first to intercept incoming events as Gateway Grant events, but fallback to asset classification if
@@ -31,11 +36,32 @@ class StreamEventHandlerService(
     }
 
     fun handleGatewayGrant(gatewayGrant: GatewayGrantEvent) {
-        // TODO: Steps:
-        // 1. Pull scope down and verify that the scope is associated with one of the registered private keys in the app
-        // 2. Decode signers from the tx and ensure that the signer owns the associated scope
-        // 3. PARTY TIME ADD ACCESS FOR THE GRANTED ADDRESS
+        val scopeResponse = lookupScope(gatewayGrant.scopeAddress)
+        val granterAddress = findRegisteredScopeOwnerAddress(scopeResponse) ?: run {
+            logger.info("Skipping event [${gatewayGrant.txHash}] for unrelated scope [${gatewayGrant.scopeAddress}]")
+            return
+        }
+        if (scopeResponse.scope.scope.valueOwnerAddress !in getSignersForTx(gatewayGrant.txHash).map { it.second }) {
+            logger.info("Skipping event [${gatewayGrant.txHash}] signed by non scope owner")
+            return
+        }
+        handleAccessGrant(
+            txHash = gatewayGrant.txHash,
+            scopeAddress = gatewayGrant.scopeAddress,
+            granterAddress = granterAddress,
+            granteeAddress = gatewayGrant.grantedAccount,
+        )
     }
+
+    private fun getSignersForTx(txHash: String): List<Pair<PublicKey, String>> = pbClient
+        .cosmosService
+        .getTx(GetTxRequest.newBuilder().setHash(txHash).build())
+        .tx
+        .authInfo
+        .signerInfosList
+        .map { signerInfo -> signerInfo.publicKey.unpack(PubKey::class.java).key.toByteArray() }
+        .map(ECUtils::convertBytesToPublicKey)
+        .map { publicKey -> publicKey to publicKey.getAddress(provenanceProperties.mainNet) }
 
     fun handleEvent(event: AssetClassificationEvent) {
         // This will be extremely common - we cannot filter events upfront in the event stream code, so this check
@@ -67,38 +93,56 @@ class StreamEventHandlerService(
         }
     }
 
-    private fun AssetClassificationEvent.findRegisteredScopeOwnerAddress(): String? {
-        if (scopeOwnerAddress.isWatchedAddress()) {
-            return scopeOwnerAddress
-        }
+    private fun lookupScope(scopeAddress: String): ScopeResponse = pbClient
+        .metadataClient
+        .scope(ScopeRequest.newBuilder().setScopeId(scopeAddress).setIncludeSessions(true).build())
 
-        pbClient.metadataClient.scope(ScopeRequest.newBuilder().setScopeId(scopeAddress).setIncludeSessions(true).build()).also { scopeResponse ->
-            scopeResponse.scope.scope.ownersList.firstOrNull { it.address.isWatchedAddress() }?.also {
+    private fun AssetClassificationEvent.findRegisteredScopeOwnerAddress(): String? = if (scopeOwnerAddress.isWatchedAddress()) {
+        scopeOwnerAddress
+    } else {
+        findRegisteredScopeOwnerAddress(
+            scopeResponse = lookupScope(
+                scopeAddress = scopeAddress
+                    ?: error("Asset Classification Event [${this.sourceEvent.txHash}] did not include a scope address"),
+            )
+        )
+    }
+
+    private fun findRegisteredScopeOwnerAddress(scopeResponse: ScopeResponse): String? {
+        scopeResponse.scope.scope.ownersList.firstOrNull { it.address.isWatchedAddress() }?.also {
+            return it.address
+        }
+        scopeResponse.scope.scope.dataAccessList.firstOrNull { it.isWatchedAddress() }?.also {
+            return it
+        }
+        scopeResponse.sessionsList.flatMap { it.session.partiesList }.firstOrNull { it.address.isWatchedAddress() }
+            ?.also {
                 return it.address
             }
-
-            scopeResponse.scope.scope.dataAccessList.firstOrNull { it.isWatchedAddress() }?.also {
-                return it
-            }
-
-            scopeResponse.sessionsList
-                .flatMap { it.session.partiesList }
-                .firstOrNull { it.address.isWatchedAddress() }?.also {
-                    return it.address
-                }
-        }
-
         return null
     }
 
     private fun String?.isWatchedAddress(): Boolean = this != null && accountAddresses.contains(this)
 
-    private fun handleOnboardAsset(event: AssetClassificationEvent, registeredAddress: String) {
-        // fetch scope and add all hashes to lookup? Or just add scope to lookup?
-        val logPrefix = "[ONBOARD ASSET | Tx: ${event.sourceEvent.txHash}]:"
-        val scopeAddress = event.scopeAddress.checkNotNull { "$logPrefix Expected the onboard asset event to include a scope address" }
+    private fun handleOnboardAsset(event: AssetClassificationEvent, registeredAddress: String) = handleAccessGrant(
+        txHash = event.sourceEvent.txHash,
+        scopeAddress = event.scopeAddress.checkNotNull { "[ONBOARD ASSET | Tx: ${event.sourceEvent.txHash}]: Expected the onboard asset event to include a scope address" },
+        granteeAddress = event.verifierAddress!!,
+        granterAddress = registeredAddress,
+    )
 
-        logger.info("$logPrefix Adding verifier to access list for scope $scopeAddress with granter $registeredAddress")
-        scopePermissionsRepository.addAccessPermission(event.scopeAddress!!, event.verifierAddress!!, registeredAddress)
+    private fun handleAccessGrant(
+        txHash: String,
+        scopeAddress: String,
+        granteeAddress: String,
+        granterAddress: String,
+    ) {
+        // fetch scope and add all hashes to lookup? Or just add scope to lookup? (probably do all hashes in v2)
+        logger.info("[ACCESS GRANT | Tx: $txHash]: Adding verifier to access list for scope $scopeAddress and grantee $granteeAddress with granter $granterAddress")
+        scopePermissionsRepository.addAccessPermission(
+            scopeAddress = scopeAddress,
+            granteeAddress = granteeAddress,
+            granterAddress = granterAddress,
+        )
     }
 }

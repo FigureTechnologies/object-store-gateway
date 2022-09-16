@@ -10,6 +10,7 @@ import io.provenance.metadata.v1.PartyType
 import io.provenance.metadata.v1.ScopeResponse
 import io.provenance.metadata.v1.SessionWrapper
 import io.provenance.objectstore.gateway.configuration.DataMigration
+import io.provenance.objectstore.gateway.configuration.ProvenanceProperties
 import io.provenance.objectstore.gateway.eventstream.ContractKey
 import io.provenance.objectstore.gateway.model.ScopePermissionsTable
 import io.provenance.objectstore.gateway.repository.ScopePermissionsRepository
@@ -36,6 +37,7 @@ class StreamEventHandlerServiceTest {
     val scopeAddress = "scopeAddress"
 
     lateinit var pbClient: PbClient
+    lateinit var provenanceProperties: ProvenanceProperties
     lateinit var scopePermissionsRepository: ScopePermissionsRepository
     lateinit var service: StreamEventHandlerService
 
@@ -47,7 +49,9 @@ class StreamEventHandlerServiceTest {
     fun setUp(vararg watchedAddresses: String = listOf(onboardingOwnerAddress, otherOwnerAddress, sessionPartyAddress, dataAccessAddress).toTypedArray()) {
         scopePermissionsRepository = ScopePermissionsRepository()
         pbClient = mockk()
+        provenanceProperties = mockk()
 
+        every { provenanceProperties.mainNet } returns false
         every { pbClient.metadataClient.scope(any()) } returns ScopeResponse.newBuilder()
             .apply {
                 scopeBuilder.scopeBuilder
@@ -62,7 +66,7 @@ class StreamEventHandlerServiceTest {
             )
             .build()
 
-        service = StreamEventHandlerService(watchedAddresses.toSet(), scopePermissionsRepository, pbClient)
+        service = StreamEventHandlerService(watchedAddresses.toSet(), scopePermissionsRepository, pbClient, provenanceProperties)
     }
 
     @Test
