@@ -74,7 +74,7 @@ class StreamEventHandlerServiceTest {
                     .addOwners(Party.newBuilder().setRole(PartyType.PARTY_TYPE_OWNER).setAddress(onboardingOwnerAddress))
                     .addOwners(Party.newBuilder().setRole(PartyType.PARTY_TYPE_AFFILIATE).setAddress(otherOwnerAddress))
                     .addDataAccess(dataAccessAddress)
-                scopeBuilder.scopeBuilder.valueOwnerAddress = txSigner.bech32Address
+                scopeBuilder.scopeBuilder.valueOwnerAddress = valueOwner.bech32Address
             }.addSessions(
                 SessionWrapper.newBuilder()
                     .apply {
