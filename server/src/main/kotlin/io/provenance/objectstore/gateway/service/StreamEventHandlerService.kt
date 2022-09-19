@@ -63,6 +63,8 @@ class StreamEventHandlerService(
         // Ensure that the scope's value owner signed for the transaction that emitted this wasm event.  This ensures
         // that this access grant has been safely requested and should be made
         getSignerAddressesForTx(gatewayEvent.txHash).also { signerAddresses ->
+            // TODO: Do a reverse lookup for authz grants from the scope owner to signers to allow requests not directly
+            // originating from the scope owner - will have to determine a list of which grants are accessible.
             if (scopeResponse.scope.scope.valueOwnerAddress !in signerAddresses) {
                 // This is a warning because an event attempted to grant access without actually owning the reference
                 // scope.  This indicates a bad configuration or an attempt to hijack data access.
@@ -90,6 +92,8 @@ class StreamEventHandlerService(
         // target account itself wishes to remove its own access
         getSignerAddressesForTx(gatewayEvent.txHash).also { signerAddresses ->
             logger.info("Found signers for tx [${gatewayEvent.txHash}]: $signerAddresses")
+            // TODO: Do a reverse lookup for authz grants from the scope owner to signers to allow requests not directly
+            // originating from the scope owner - will have to determine a list of which grants are accessible.
             if (
                 gatewayEvent.targetAccount !in signerAddresses &&
                 lookupScope(gatewayEvent.scopeAddress, includeSessions = false).scope.scope.valueOwnerAddress !in signerAddresses
