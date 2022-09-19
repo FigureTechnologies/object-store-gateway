@@ -1,5 +1,6 @@
 package io.provenance.objectstore.gateway.eventstream
 
+// TODO: Remove this class when asset classification events are no longer consumed
 enum class AcContractEvent(val contractName: String, val isHandled: Boolean = false) {
     INSTANTIATE_CONTRACT("instantiate_contract"),
     MIGRATE_CONTRACT("migrate_contract"),

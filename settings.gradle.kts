@@ -43,4 +43,20 @@ buildscript {
     }
 }
 
+plugins {
+    id("org.danilopianini.gradle-pre-commit-git-hooks") version "1.0.19"
+}
+
+gitHooks {
+    preCommit {
+        from {
+            """
+                echo "Running pre-commit ktlint check"
+                ./gradlew ktlintCheck
+            """.trimIndent()
+        }
+    }
+    createHooks()
+}
+
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")

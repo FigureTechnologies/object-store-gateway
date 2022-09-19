@@ -1,5 +1,6 @@
 package io.provenance.objectstore.gateway.eventstream
 
+// TODO: Remove this class when asset classification events are no longer consumed
 enum class AcContractKey(val eventName: String) {
     EVENT_TYPE("asset_event_type"),
     ASSET_TYPE("asset_type"),
