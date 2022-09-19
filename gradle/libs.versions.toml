@@ -1,6 +1,7 @@
 [versions]
 bouncyCastle = "1.70"
 exposed = "0.37.3"
+flyway = "8.0.2"
 grpc = "1.45.1"
 grpcSpringboot = "3.4.3"
 hikariCP = "5.0.1"
@@ -35,6 +36,7 @@ coroutinesCoreJvm = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core-jv
 coroutinesReactor = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-reactor", version.ref = "kotlinCoroutines" }
 coroutinesJdk8 = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-jdk8", version.ref = "kotlinCoroutines" }
 coroutinesSLF4J = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-slf4j", version.ref = "kotlinCoroutines" }
+flyway = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
 reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
 stdLibJdk8 = { module = "org.jetbrains.kotlin:kotlin-stdlib-jdk8", version.ref = "kotlin" }
 kotlinLogging = { module = "io.github.microutils:kotlin-logging-jvm", version.ref = "kotlinLogging" }
@@ -83,7 +85,7 @@ protobuf = ["protobufJava", "protobufJavaUtil"]
 provenance = ["provenanceEventStreamApi", "provenanceEventStreamApiModel", "provenanceEventStreamCli", "provenanceEventStreamCore", "provenanceGrpcClient", "provenanceHdWallet", "provenanceProto", "scopeSdk", "scopeUtil"]
 scarlet = ["messageAdapterMoshi", "scarlet", "streamAdapterCoroutines", "webSocketOkHttp"]
 springboot = ["springBootAutoConfigure", "springBootStarter", "springBootStarterActuator", "springBootStarterAOP", "springBootStarterJetty", "springBootStarterWeb"]
-exposed = ["exposedCore", "exposedDao", "exposedJdbc", "postgres", "hikariCP", "sqLite"]
+exposed = ["exposedCore", "exposedDao", "exposedJdbc", "postgres", "hikariCP", "sqLite", "flyway"]
 testKotlin = ["kotlinTest", "mockk"]
 testSpringBoot = ["starterTest"]
 jwt = ["javaJwt"]
