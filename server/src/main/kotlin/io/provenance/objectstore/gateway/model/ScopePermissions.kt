@@ -7,7 +7,6 @@ import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.and
 import java.time.OffsetDateTime
-import java.util.UUID
 
 object ScopePermissionsTable : IntIdTable("scope_permissions", "id") {
     val scopeAddress = varchar("scope_address", 44).index()
@@ -39,7 +38,7 @@ open class ScopePermissionClass : IntEntityClass<ScopePermission>(ScopePermissio
 }
 
 class ScopePermission(id: EntityID<Int>) : IntEntity(id) {
-    companion object: ScopePermissionClass()
+    companion object : ScopePermissionClass()
 
     var scopeAddress by ScopePermissionsTable.scopeAddress
     var granteeAddress by ScopePermissionsTable.granteeAddress

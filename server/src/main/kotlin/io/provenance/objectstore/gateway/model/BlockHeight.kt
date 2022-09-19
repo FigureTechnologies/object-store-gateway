@@ -1,7 +1,6 @@
 package io.provenance.objectstore.gateway.model
 
 import io.provenance.objectstore.gateway.sql.offsetDatetime
-import org.jetbrains.exposed.dao.Entity
 import org.jetbrains.exposed.dao.UUIDEntity
 import org.jetbrains.exposed.dao.UUIDEntityClass
 import org.jetbrains.exposed.dao.id.EntityID

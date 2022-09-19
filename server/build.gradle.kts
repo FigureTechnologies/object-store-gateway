@@ -61,6 +61,8 @@ tasks.withType<KotlinCompile> {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    // Force tests to re-run on every test invocation
+    outputs.upToDateWhen { false }
 }
 
 tasks.bootRun {

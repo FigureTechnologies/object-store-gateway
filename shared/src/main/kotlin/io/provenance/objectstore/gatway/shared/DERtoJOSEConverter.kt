@@ -15,29 +15,29 @@ class DERtoJOSEConverter(
         }
         val joseSignature = ByteArray(ecNumberSize * 2)
 
-        //Skip 0x30
+        // Skip 0x30
         var offset = 1
         if (derSignature[1] == 0x81.toByte()) {
-            //Skip sign
+            // Skip sign
             offset++
         }
 
-        //Convert to unsigned. Should match DER length - offset
+        // Convert to unsigned. Should match DER length - offset
         val encodedLength: Int = (derSignature[offset++] and 0xff.toByte()).toInt()
         if (encodedLength != derSignature.size - offset) {
             throw SignatureException("Invalid DER signature format.")
         }
 
-        //Skip 0x02
+        // Skip 0x02
         offset++
 
-        //Obtain R number length (Includes padding) and skip it
+        // Obtain R number length (Includes padding) and skip it
         val rLength = derSignature[offset++].toInt()
         if (rLength > ecNumberSize + 1) {
             throw SignatureException("Invalid DER signature format.")
         }
         val rPadding: Int = ecNumberSize - rLength
-        //Retrieve R number
+        // Retrieve R number
         System.arraycopy(
             derSignature,
             offset + Math.max(-rPadding, 0),
@@ -46,16 +46,16 @@ class DERtoJOSEConverter(
             rLength + Math.min(rPadding, 0)
         )
 
-        //Skip R number and 0x02
+        // Skip R number and 0x02
         offset += rLength + 1
 
-        //Obtain S number length. (Includes padding)
+        // Obtain S number length. (Includes padding)
         val sLength = derSignature[offset++].toInt()
         if (sLength > ecNumberSize + 1) {
             throw SignatureException("Invalid DER signature format.")
         }
         val sPadding: Int = ecNumberSize - sLength
-        //Retrieve R number
+        // Retrieve R number
         System.arraycopy(
             derSignature,
             offset + Math.max(-sPadding, 0),

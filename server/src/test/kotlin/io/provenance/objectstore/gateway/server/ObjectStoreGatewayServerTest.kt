@@ -41,11 +41,13 @@ class ObjectStoreGatewayServerTest {
     fun `fetchObject should succeed with a valid request`() {
         val request = getValidRequest()
 
-        val dummyRecords = listOf(GatewayOuterClass.Record.newBuilder()
-            .setName("dummyRecordName")
-            .addInputs(GatewayOuterClass.RawObject.newBuilder().setObjectBytes(Random.nextBytes(100).toByteString()))
-            .addOutputs(GatewayOuterClass.RawObject.newBuilder().setObjectBytes(Random.nextBytes(100).toByteString()))
-            .build())
+        val dummyRecords = listOf(
+            GatewayOuterClass.Record.newBuilder()
+                .setName("dummyRecordName")
+                .addInputs(GatewayOuterClass.RawObject.newBuilder().setObjectBytes(Random.nextBytes(100).toByteString()))
+                .addOutputs(GatewayOuterClass.RawObject.newBuilder().setObjectBytes(Random.nextBytes(100).toByteString()))
+                .build()
+        )
 
         every { scopeFetchService.fetchScope(request.scopeAddress, keyPair.public, request.granterAddress.takeIf { it.isNotBlank() }) } returns dummyRecords
 
@@ -55,10 +57,12 @@ class ObjectStoreGatewayServerTest {
         server.fetchObject(request, responseObserver)
 
         verifyAll {
-            responseObserver.onNext(GatewayOuterClass.FetchObjectResponse.newBuilder()
-                .setScopeId(request.scopeAddress)
-                .addAllRecords(dummyRecords)
-                .build())
+            responseObserver.onNext(
+                GatewayOuterClass.FetchObjectResponse.newBuilder()
+                    .setScopeId(request.scopeAddress)
+                    .addAllRecords(dummyRecords)
+                    .build()
+            )
             responseObserver.onCompleted()
         }
     }
