@@ -2,12 +2,9 @@ package io.provenance.objectstore.gateway.configuration
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
-import io.provenance.objectstore.gateway.model.BlockHeightTable
-import io.provenance.objectstore.gateway.model.ScopePermissionsTable
 import mu.KLogging
 import org.bouncycastle.asn1.x500.style.RFC4519Style.name
 import org.flywaydb.core.Flyway
-import org.flywaydb.core.api.MigrationVersion
 import org.flywaydb.core.api.configuration.FluentConfiguration
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.Schema
@@ -16,13 +13,10 @@ import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.vendors.PostgreSQLDialect
 import org.jetbrains.exposed.sql.vendors.SQLiteDialect
-import org.postgresql.Driver
 import org.springframework.boot.autoconfigure.flyway.FlywayMigrationInitializer
-import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
-import org.springframework.stereotype.Component
 import java.sql.Connection
 import javax.sql.DataSource
 
@@ -78,12 +72,14 @@ class DataConfig {
         }
 
     @Bean
-    fun flyway(dataSource: DataSource, databaseProperties: DatabaseProperties): Flyway = Flyway(FluentConfiguration().dataSource(dataSource).apply {
-        if (databaseProperties.type != "postgresql") {
-            // skip initial 1_0__Init_UUID migration for non-postgres dbs as this isn't supported for sqlite/memory
-            baselineVersion("1.0")
+    fun flyway(dataSource: DataSource, databaseProperties: DatabaseProperties): Flyway = Flyway(
+        FluentConfiguration().dataSource(dataSource).apply {
+            if (databaseProperties.type != "postgresql") {
+                // skip initial 1_0__Init_UUID migration for non-postgres dbs as this isn't supported for sqlite/memory
+                baselineVersion("1.0")
+            }
         }
-    }).apply {
+    ).apply {
         if (databaseProperties.type != "postgresql") {
             baseline()
         }
