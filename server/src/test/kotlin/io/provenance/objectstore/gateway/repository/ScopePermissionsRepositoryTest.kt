@@ -3,18 +3,13 @@ package io.provenance.objectstore.gateway.repository
 import io.provenance.objectstore.gateway.configuration.DataMigration
 import io.provenance.objectstore.gateway.model.ScopePermission
 import io.provenance.objectstore.gateway.model.ScopePermissionsTable
-import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.deleteAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
-import kotlin.test.assertContains
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
-import kotlin.test.asserter
 
 @SpringBootTest
 class ScopePermissionsRepositoryTest {
@@ -41,8 +36,8 @@ class ScopePermissionsRepositoryTest {
         transaction {
             ScopePermission.findAllByScopeIdAndGranteeAddress(scopeAddress, granteeAddress).also { records ->
                 assertEquals(1, records.count(), "There should be only one record created")
-                assertEquals(records.first().scopeAddress,  scopeAddress,"The scope permission record should have the proper scope address")
-                assertEquals(records.first().granterAddress, granterAddress,"The scope permission record should have the proper granter")
+                assertEquals(records.first().scopeAddress, scopeAddress, "The scope permission record should have the proper scope address")
+                assertEquals(records.first().granterAddress, granterAddress, "The scope permission record should have the proper granter")
                 assertEquals(records.first().granteeAddress, granteeAddress, "The scope permission record should have the proper grantee")
             }
         }

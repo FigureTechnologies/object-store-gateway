@@ -50,24 +50,29 @@ class ScopeFetchServiceTest {
     }.toMap()
 
     fun generateScope(numRecords: Int, ownerKey: Pair<String, DirectKeyRef> = scopeOwnerKey) = ScopeResponse.newBuilder()
-        .addAllRecords((1..numRecords).map {
-            val prefix = "record$it"
-            RecordWrapper.newBuilder()
-                .setRecord(
-                    Record.newBuilder()
-                        .setName("${prefix}Name")
-                        .addInputs(RecordInput.newBuilder()
-                            .setHash("${prefix}InputHash".toHash())
-                            .setTypeName("${prefix}InputType")
-                        ).addOutputs(RecordOutput.newBuilder()
-                            .setHash("${prefix}OutputHash".toHash())
-                        ).setProcess(Process.newBuilder()
-                            .setHash("${prefix}ProcessHash".toHash())
-                            .setName("${prefix}OutputType")
-                        )
-                )
-                .build()
-        })
+        .addAllRecords(
+            (1..numRecords).map {
+                val prefix = "record$it"
+                RecordWrapper.newBuilder()
+                    .setRecord(
+                        Record.newBuilder()
+                            .setName("${prefix}Name")
+                            .addInputs(
+                                RecordInput.newBuilder()
+                                    .setHash("${prefix}InputHash".toHash())
+                                    .setTypeName("${prefix}InputType")
+                            ).addOutputs(
+                                RecordOutput.newBuilder()
+                                    .setHash("${prefix}OutputHash".toHash())
+                            ).setProcess(
+                                Process.newBuilder()
+                                    .setHash("${prefix}ProcessHash".toHash())
+                                    .setName("${prefix}OutputType")
+                            )
+                    )
+                    .build()
+            }
+        )
         .apply {
             scopeBuilder.scopeBuilder
                 .addOwners(ownerKey.first.toOwnerParty())

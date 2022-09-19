@@ -9,11 +9,9 @@ import io.grpc.stub.MetadataUtils
 import io.provenance.objectstore.gateway.GatewayGrpc
 import io.provenance.objectstore.gateway.GatewayOuterClass
 import io.provenance.objectstore.gatway.shared.KeyRefSecP256K1Algorithm
-import io.provenance.scope.encryption.crypto.SignerImpl
 import io.provenance.scope.encryption.ecies.ECUtils
 import io.provenance.scope.encryption.model.KeyRef
 import io.provenance.scope.encryption.util.getAddress
-import io.provenance.scope.util.toProtoTimestamp
 import java.io.Closeable
 import java.security.KeyPair
 import java.security.PublicKey
@@ -24,7 +22,7 @@ import java.time.OffsetDateTime
 import java.util.Date
 import java.util.concurrent.TimeUnit
 
-class GatewayClient(val config: ClientConfig): Closeable {
+class GatewayClient(val config: ClientConfig) : Closeable {
     private val channel = NettyChannelBuilder.forAddress(config.gatewayUri.host, config.gatewayUri.port)
         .apply {
             if (config.gatewayUri.scheme == "grpcs") {
@@ -95,9 +93,10 @@ class GatewayClient(val config: ClientConfig): Closeable {
 
         return gatewayStub.withDeadline(Deadline.after(timeout.seconds, TimeUnit.SECONDS))
             .withInterceptors(MetadataUtils.newAttachHeadersInterceptor(metadata))
-            .fetchObject(GatewayOuterClass.FetchObjectRequest.newBuilder()
-                .setScopeAddress(scopeAddress)
-                .build()
+            .fetchObject(
+                GatewayOuterClass.FetchObjectRequest.newBuilder()
+                    .setScopeAddress(scopeAddress)
+                    .build()
             ).get()
     }
 

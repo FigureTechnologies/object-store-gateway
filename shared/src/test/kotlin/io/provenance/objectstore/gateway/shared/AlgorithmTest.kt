@@ -7,7 +7,6 @@ import io.provenance.scope.encryption.ecies.ECUtils
 import io.provenance.scope.encryption.ecies.ProvenanceKeyGenerator
 import io.provenance.scope.encryption.model.DirectKeyRef
 import io.provenance.scope.encryption.util.getAddress
-import io.provenance.scope.objectstore.util.base64Decode
 import org.junit.Test
 import java.security.interfaces.ECPrivateKey
 import java.security.interfaces.ECPublicKey

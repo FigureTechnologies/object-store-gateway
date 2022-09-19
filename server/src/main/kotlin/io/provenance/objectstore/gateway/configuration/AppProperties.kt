@@ -53,10 +53,3 @@ data class DatabaseProperties(
     val schema: String,
     @Pattern(value = "\\d{1,2}") val connectionPoolSize: String,
 )
-
-@Validated
-@ConstructorBinding
-@ConfigurationProperties(prefix = "contract")
-data class ContractProperties(
-    val address: String,
-)

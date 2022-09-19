@@ -2,12 +2,10 @@ package io.provenance.objectstore.gateway.service
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
-import com.auth0.jwt.exceptions.JWTVerificationException
 import io.provenance.objectstore.gateway.exception.JwtValidationException
 import io.provenance.scope.encryption.ecies.ECUtils
 import io.provenance.scope.encryption.ecies.ProvenanceKeyGenerator
 import io.provenance.scope.encryption.util.getAddress
-import io.provenance.scope.objectstore.util.base64Decode
 import org.bouncycastle.asn1.x509.ObjectDigestInfo.publicKey
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -17,7 +15,6 @@ import java.security.interfaces.ECPrivateKey
 import java.security.interfaces.ECPublicKey
 import java.time.OffsetDateTime
 import java.util.Date
-import kotlin.test.assertContains
 import kotlin.test.assertEquals
 
 class JwtVerificationServiceTest {

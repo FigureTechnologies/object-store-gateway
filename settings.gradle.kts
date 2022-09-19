@@ -24,13 +24,14 @@ pluginManagement {
         id("io.github.gradle-nexus.publish-plugin") version "1.1.0" apply false
         id("signing") apply false
         id("org.flywaydb.flyway") version "8.0.2"
+        id("org.jlleitschuh.gradle.ktlint") version "10.3.0" apply false
+        id("com.adarshr.test-logger") version "3.2.0" apply false
     }
 }
 
 dependencyResolutionManagement {
     repositories {
         mavenCentral()
-        maven { url = uri("https://s01.oss.sonatype.org/content/groups/staging/") }
     }
 }
 
@@ -42,6 +43,22 @@ buildscript {
     dependencies {
         classpath("com.google.protobuf:protobuf-gradle-plugin:0.8.18")
     }
+}
+
+plugins {
+    id("org.danilopianini.gradle-pre-commit-git-hooks") version "1.0.19"
+}
+
+gitHooks {
+    preCommit {
+        from {
+            """
+                echo "Running pre-commit ktlint check"
+                ./gradlew ktlintCheck
+            """.trimIndent()
+        }
+    }
+    createHooks()
 }
 
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
