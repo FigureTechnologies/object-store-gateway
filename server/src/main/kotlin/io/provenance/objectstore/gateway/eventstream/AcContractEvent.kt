@@ -1,6 +1,6 @@
 package io.provenance.objectstore.gateway.eventstream
 
-enum class ContractEvent(val contractName: String, val isHandled: Boolean = false) {
+enum class AcContractEvent(val contractName: String, val isHandled: Boolean = false) {
     INSTANTIATE_CONTRACT("instantiate_contract"),
     MIGRATE_CONTRACT("migrate_contract"),
     ONBOARD_ASSET("onboard_asset", isHandled = true),
@@ -14,10 +14,10 @@ enum class ContractEvent(val contractName: String, val isHandled: Boolean = fals
     ;
 
     companion object {
-        private val CONTRACT_NAME_MAP: Map<String, ContractEvent> by lazy { values().associateBy { it.contractName } }
-        val HANDLED_EVENTS: Set<ContractEvent> by lazy { values().filter { it.isHandled }.toSet() }
+        private val CONTRACT_NAME_MAP: Map<String, AcContractEvent> by lazy { values().associateBy { it.contractName } }
+        val HANDLED_EVENTS: Set<AcContractEvent> by lazy { values().filter { it.isHandled }.toSet() }
         val HANDLED_EVENT_NAMES: Set<String> by lazy { HANDLED_EVENTS.map { it.contractName }.toSet() }
 
-        fun forContractName(name: String): ContractEvent = CONTRACT_NAME_MAP[name] ?: throw IllegalArgumentException("Unknown ContractEvent variant [$name]")
+        fun forContractName(name: String): AcContractEvent = CONTRACT_NAME_MAP[name] ?: throw IllegalArgumentException("Unknown ContractEvent variant [$name]")
     }
 }

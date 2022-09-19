@@ -8,6 +8,7 @@ plugins {
     id("io.github.gradle-nexus.publish-plugin") version "1.1.0"
     id("signing")
     id("org.jlleitschuh.gradle.ktlint")
+    id("com.adarshr.test-logger")
 }
 
 repositories {
@@ -30,6 +31,7 @@ subprojects {
     val projectName = name
     if (projectName in listOf("client", "server", "shared")) {
         apply(plugin = "org.jlleitschuh.gradle.ktlint")
+        apply(plugin = "com.adarshr.test-logger")
     }
     if (projectName in listOf("client", "proto", "shared")) {
         apply(plugin = "maven-publish")
