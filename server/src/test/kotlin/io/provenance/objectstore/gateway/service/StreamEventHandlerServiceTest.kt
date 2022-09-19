@@ -45,14 +45,9 @@ class StreamEventHandlerServiceTest {
     val otherOwnerAddress = "otherOwner"
     val sessionPartyAddress = "sessionParty"
     val dataAccessAddress = "dataAccess"
-    val granteeAddress = "verifierAddress"
+    val grantee: Account = genRandomAccount()
     val scopeAddress = "scopeAddress"
-    val valueOwner: Account = Wallet.fromMnemonic(
-        hrp = "tp",
-        passphrase = "",
-        mnemonicWords = MnemonicWords.generate(strength = 256),
-        testnet = true,
-    )["m/44'/1'/0'/0/0'"] // Access the standard testnet account address
+    val valueOwner: Account = genRandomAccount() // Access the standard testnet account address
 
     lateinit var pbClient: PbClient
     lateinit var provenanceProperties: ProvenanceProperties
@@ -79,7 +74,7 @@ class StreamEventHandlerServiceTest {
                     .addOwners(Party.newBuilder().setRole(PartyType.PARTY_TYPE_OWNER).setAddress(onboardingOwnerAddress))
                     .addOwners(Party.newBuilder().setRole(PartyType.PARTY_TYPE_AFFILIATE).setAddress(otherOwnerAddress))
                     .addDataAccess(dataAccessAddress)
-                scopeBuilder.scopeBuilder.valueOwnerAddress = valueOwner.address.value
+                scopeBuilder.scopeBuilder.valueOwnerAddress = txSigner.bech32Address
             }.addSessions(
                 SessionWrapper.newBuilder()
                     .apply {
@@ -92,7 +87,7 @@ class StreamEventHandlerServiceTest {
                 txBuilder.authInfoBuilder.addSignerInfos(
                     SignerInfo.newBuilder().apply {
                         publicKey = PubKey.newBuilder().setKey(
-                            ECUtils.convertPublicKeyToBytes(valueOwner.keyPair.publicKey.toJavaECPublicKey())
+                            ECUtils.convertPublicKeyToBytes(txSigner.keyPair.publicKey.toJavaECPublicKey())
                                 .toByteString()
                         ).build().toAny()
                     }
@@ -108,7 +103,7 @@ class StreamEventHandlerServiceTest {
 
         submitAssetClassificationEvent()
 
-        assertEquals(listOf(onboardingOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, granteeAddress))
+        assertEquals(listOf(onboardingOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
     }
 
     @Test
@@ -117,7 +112,7 @@ class StreamEventHandlerServiceTest {
 
         submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
 
-        assertEquals(listOf(onboardingOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, granteeAddress))
+        assertEquals(listOf(onboardingOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
     }
 
     @Test
@@ -126,7 +121,7 @@ class StreamEventHandlerServiceTest {
 
         submitAssetClassificationEvent()
 
-        assertEquals(listOf(otherOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, granteeAddress))
+        assertEquals(listOf(otherOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
     }
 
     @Test
@@ -135,7 +130,7 @@ class StreamEventHandlerServiceTest {
 
         submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
 
-        assertEquals(listOf(otherOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, granteeAddress))
+        assertEquals(listOf(otherOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
     }
 
     @Test
@@ -144,7 +139,7 @@ class StreamEventHandlerServiceTest {
 
         submitAssetClassificationEvent()
 
-        assertEquals(listOf(dataAccessAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, granteeAddress))
+        assertEquals(listOf(dataAccessAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
     }
 
     @Test
@@ -153,7 +148,7 @@ class StreamEventHandlerServiceTest {
 
         submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
 
-        assertEquals(listOf(dataAccessAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, granteeAddress))
+        assertEquals(listOf(dataAccessAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
     }
 
     @Test
@@ -162,7 +157,7 @@ class StreamEventHandlerServiceTest {
 
         submitAssetClassificationEvent()
 
-        assertEquals(listOf(sessionPartyAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, granteeAddress))
+        assertEquals(listOf(sessionPartyAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
     }
 
     @Test
@@ -171,7 +166,99 @@ class StreamEventHandlerServiceTest {
 
         submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
 
-        assertEquals(listOf(sessionPartyAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, granteeAddress))
+        assertEquals(listOf(sessionPartyAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
+    }
+
+    @Test
+    fun `StreamEventHandlerService ignores event with scope that does not include registered address from gateway grant event`() {
+        setUp(watchedAddresses = emptyArray())
+
+        submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
+
+        assertEquals(
+            expected = emptyList(),
+            actual = scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address),
+        )
+    }
+
+    @Test
+    fun `StreamEventHandlerService ignores event with no related signer from gateway grant event`() {
+        // Use a rando signer to ensure that bad signers/actors are ignored
+        setUp(txSigner = genRandomAccount())
+
+        submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
+
+        assertEquals(
+            expected = emptyList(),
+            actual = scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address),
+        )
+    }
+
+    @Test
+    fun `StreamEventHandlerService successfully revokes access when requested by scope owner`() {
+        setUp()
+
+        submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
+
+        assertEquals(
+            expected = listOf(onboardingOwnerAddress),
+            actual = scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address),
+            message = "Access should be given to grantee from the scope owner",
+        )
+
+        submitGatewayEvent(GatewayExpectedEventType.ACCESS_REVOKE)
+
+        assertEquals(
+            expected = emptyList(),
+            actual = scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address),
+            message = "All access should be revoked from the grantee for the scope after the revoke event is processed",
+        )
+    }
+
+    @Test
+    fun `StreamEventHandlerService successfully revokes access when requested by grantee`() {
+        setUp()
+
+        submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
+
+        assertEquals(
+            expected = listOf(onboardingOwnerAddress),
+            actual = scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address),
+            message = "Access should be given to grantee from the scope owner",
+        )
+
+        setUp(txSigner = grantee)
+
+        submitGatewayEvent(GatewayExpectedEventType.ACCESS_REVOKE)
+
+        assertEquals(
+            expected = emptyList(),
+            actual = scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address),
+            message = "Access should be revoked by the grantee itself",
+        )
+    }
+
+    @Test
+    fun `StreamEventHandlerService skips revoke when no signers match`() {
+        setUp()
+
+        submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
+
+        assertEquals(
+            expected = listOf(onboardingOwnerAddress),
+            actual = scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address),
+            message = "Access should be given to grantee from the scope owner",
+        )
+
+        setUp(txSigner = genRandomAccount())
+
+        submitGatewayEvent(GatewayExpectedEventType.ACCESS_REVOKE)
+
+        assertEquals(
+            expected = listOf(onboardingOwnerAddress),
+            actual = scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address),
+            message = "Access should remain for the grantee because the revoke was ignored for not having a valid signer",
+        )
     }
 
     private fun submitAssetClassificationEvent() {
@@ -181,7 +268,7 @@ class StreamEventHandlerServiceTest {
                 AcContractKey.ASSET_TYPE.eventName to "payable",
                 AcContractKey.SCOPE_ADDRESS.eventName to scopeAddress,
                 AcContractKey.SCOPE_OWNER_ADDRESS.eventName to onboardingOwnerAddress,
-                AcContractKey.VERIFIER_ADDRESS.eventName to granteeAddress,
+                AcContractKey.VERIFIER_ADDRESS.eventName to grantee.bech32Address,
             )
         )
     }
@@ -191,7 +278,7 @@ class StreamEventHandlerServiceTest {
             attributes = listOf(
                 GatewayExpectedAttribute.EVENT_TYPE.key to eventType.wasmName,
                 GatewayExpectedAttribute.SCOPE_ADDRESS.key to scopeAddress,
-                GatewayExpectedAttribute.TARGET_ACCOUNT.key to granteeAddress,
+                GatewayExpectedAttribute.TARGET_ACCOUNT.key to grantee.bech32Address,
             )
         )
     }
@@ -222,4 +309,14 @@ class StreamEventHandlerServiceTest {
 
     private fun String.base64Encode(): String = Base64.getEncoder().encodeToString(toByteArray())
     private fun Pair<String, String>.toEvent(): Event = Event(first.base64Encode(), second.base64Encode())
+
+    private fun genRandomAccount(): Account = Wallet.fromMnemonic(
+        hrp = "tp",
+        passphrase = "",
+        mnemonicWords = MnemonicWords.generate(strength = 256),
+        testnet = true,
+    )["m/44'/1'/0'/0/0'"]
+
+    private val Account.bech32Address: String
+        get() = address.value
 }

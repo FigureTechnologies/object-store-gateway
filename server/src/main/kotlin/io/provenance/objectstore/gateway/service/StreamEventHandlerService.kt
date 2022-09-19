@@ -89,6 +89,7 @@ class StreamEventHandlerService(
         // validates that either the scope owner no longer wishes for the target account to have a grant, or that the
         // target account itself wishes to remove its own access
         getSignerAddressesForTx(gatewayEvent.txHash).also { signerAddresses ->
+            logger.info("Found signers for tx [${gatewayEvent.txHash}]: $signerAddresses")
             if (
                 gatewayEvent.targetAccount !in signerAddresses &&
                 lookupScope(gatewayEvent.scopeAddress, includeSessions = false).scope.scope.valueOwnerAddress !in signerAddresses
@@ -97,7 +98,7 @@ class StreamEventHandlerService(
                 return
             }
         }
-        logger.info("[ACCESS REVOKE | Tx: $${gatewayEvent.txHash}]: Revoking account [${gatewayEvent.targetAccount}] from access list for scope [${gatewayEvent.scopeAddress}]")
+        logger.info("[ACCESS REVOKE | Tx: ${gatewayEvent.txHash}]: Revoking account [${gatewayEvent.targetAccount}] from access list for scope [${gatewayEvent.scopeAddress}]")
         scopePermissionsRepository.revokeAccessPermission(
             scopeAddress = gatewayEvent.scopeAddress,
             granteeAddress = gatewayEvent.targetAccount,
