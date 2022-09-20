@@ -64,8 +64,8 @@ class DataConfig {
                     try {
                         SchemaUtils.createSchema(Schema(databaseProperties.schema))
                     } catch (e: Exception) {
-                        logger.info("Exception creating schema [${databaseProperties.schema}]: ${e.message}")
-                        logger.info("attempting to continue as this may be just a permissions issue (the schema may already exist or you might need to create it manually)")
+                        logger.warn("Exception creating schema [${databaseProperties.schema}]: ${e.message}")
+                        logger.warn("attempting to continue as this may be just a permissions issue (the schema may already exist or you might need to create it manually)")
                     }
                 }
             }
