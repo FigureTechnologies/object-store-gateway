@@ -82,7 +82,10 @@ jobs:
           [ "$VERSION" == "main" ] && VERSION=latest
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           IMAGE_ID=ghcr.io/${{ github.repository }}
-          DOCKER_TAGS=$IMAGE_ID:$VERSION
+          # Concatenate image ID and version to create a docker tag.  Docker repositories require all lowercase input,
+          # so this forces the output of that concat to be a lowercase value to ensure rejections for FigureTechnologies
+          # are circumvented
+          DOCKER_TAGS=$(echo "$IMAGE_ID:$VERSION" | awk '{print tolower($0)}')
           PRERELEASE=${{ github.event.release.prerelease }}
           echo PRERELEASE=$PRERELEASE
           if [ "$PRERELEASE" == "false" ]; then
