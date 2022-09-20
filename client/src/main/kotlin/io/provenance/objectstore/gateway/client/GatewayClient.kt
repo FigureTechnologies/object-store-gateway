@@ -104,6 +104,9 @@ class GatewayClient(val config: ClientConfig) : Closeable {
      * @param objectType (optional) the type of data that this represents. This is for reference at the time of retrieval if needed
      * @param jwt a provenance JWT (can be created using this client's `createJwt` methods)
      * @param timeout an optional timeout for the request
+     *
+     * @return a proto containing the hash of the stored object. This hash can be used for future retrieval via [getObject].
+     *  Note that this is not the hash of the provided objectBytes, but rather the sha256 hash of a serialized proto containing the provided objectBytes and objectType
      */
     fun putObject(objectBytes: ByteArray, objectType: String? = null, jwt: String, timeout: Duration = Duration.ofSeconds(10)): GatewayOuterClass.PutObjectResponse {
         return gatewayStub.withDeadline(Deadline.after(timeout.seconds, TimeUnit.SECONDS))
@@ -128,6 +131,9 @@ class GatewayClient(val config: ClientConfig) : Closeable {
      * @param objectType (optional) the type of data that this represents. This is for reference at the time of retrieval if needed
      * @param keyPair the KeyPair of the key to sign the request with
      * @param timeout an optional timeout for the request/used in the request to expire signature
+     *
+     * @return a proto containing the hash of the stored object. This hash can be used for future retrieval via [getObject].
+     *  Note that this is not the hash of the provided objectBytes, but rather the sha256 hash of a serialized proto containing the provided objectBytes and objectType
      */
     fun putObject(objectBytes: ByteArray, objectType: String? = null, keyPair: KeyPair, timeout: Duration = Duration.ofSeconds(10)): GatewayOuterClass.PutObjectResponse {
         val jwt = createJwt(keyPair, OffsetDateTime.now().plus(timeout))
@@ -143,6 +149,9 @@ class GatewayClient(val config: ClientConfig) : Closeable {
      * @param objectType (optional) the type of data that this represents. This is for reference at the time of retrieval if needed
      * @param keyRef the KeyRef of the key to sign the request with
      * @param timeout an optional timeout for the request/used in the request to expire signature
+     *
+     * @return a proto containing the hash of the stored object. This hash can be used for future retrieval via [getObject].
+     *  Note that this is not the hash of the provided objectBytes, but rather the sha256 hash of a serialized proto containing the provided objectBytes and objectType
      */
     fun putObject(objectBytes: ByteArray, objectType: String? = null, keyRef: KeyRef, timeout: Duration = Duration.ofSeconds(10)): GatewayOuterClass.PutObjectResponse {
         val jwt = createJwt(keyRef, OffsetDateTime.now().plus(timeout))
@@ -154,9 +163,11 @@ class GatewayClient(val config: ClientConfig) : Closeable {
      * Retrieve an object from object store via the gateway. The object will only be returned if the address contained within the authenticated jwt
      * has been granted access via the gateway.
      *
-     * @param hash the hash of the object to retrieve
+     * @param hash the hash of the object to retrieve (as returned by [putObject])
      * @param jwt a provenance JWT (can be created using this client's `createJwt` methods)
      * @param timeout an optional timeout for the request
+     *
+     * @return a proto containing an object that holds the provided objectBytes and objectType as provided by [putObject]
      */
     fun getObject(hash: String, jwt: String, timeout: Duration = Duration.ofSeconds(10)): GatewayOuterClass.FetchObjectByHashResponse {
         return gatewayStub.withDeadline(Deadline.after(timeout.seconds, TimeUnit.SECONDS))
@@ -172,9 +183,11 @@ class GatewayClient(val config: ClientConfig) : Closeable {
      * Retrieve an object from object store via the gateway. The object will only be returned if the address corresponding to the provided
      * keyPair's public key has been granted access via the gateway.
      *
-     * @param hash the hash of the object to retrieve
+     * @param hash the hash of the object to retrieve (as returned by [putObject])
      * @param keyPair the KeyPair of the key to sign the request with
      * @param timeout an optional timeout for the request/used in the request to expire signature
+     *
+     * @return a proto containing an object that holds the provided objectBytes and objectType as provided by [putObject]
      */
     fun getObject(hash: String, keyPair: KeyPair, timeout: Duration = Duration.ofSeconds(10)): GatewayOuterClass.FetchObjectByHashResponse {
         val jwt = createJwt(keyPair, OffsetDateTime.now().plus(timeout))
@@ -186,9 +199,11 @@ class GatewayClient(val config: ClientConfig) : Closeable {
      * Retrieve an object from object store via the gateway. The object will only be returned if the address corresponding to the provided
      * keyRef's public key has been granted access via the gateway.
      *
-     * @param hash the hash of the object to retrieve
+     * @param hash the hash of the object to retrieve (as returned by [putObject])
      * @param keyRef the KeyRef of the key to sign the request with
      * @param timeout an optional timeout for the request/used in the request to expire signature
+     *
+     * @return a proto containing an object that holds the provided objectBytes and objectType as provided by [putObject]
      */
     fun getObject(hash: String, keyRef: KeyRef, timeout: Duration = Duration.ofSeconds(10)): GatewayOuterClass.FetchObjectByHashResponse {
         val jwt = createJwt(keyRef, OffsetDateTime.now().plus(timeout))
