@@ -103,10 +103,11 @@ class StreamEventHandlerService(
                 return
             }
         }
-        logger.info("[ACCESS REVOKE | Tx: ${gatewayEvent.txHash}]: Revoking account [${gatewayEvent.targetAccount}] from access list for scope [${gatewayEvent.scopeAddress}]")
+        logger.info("[ACCESS REVOKE | Tx: ${gatewayEvent.txHash}]: Revoking account [${gatewayEvent.targetAccount}] from access list for scope [${gatewayEvent.scopeAddress}]${if (gatewayEvent.accessGrantId != null) " with grant ID [${gatewayEvent.accessGrantId}]" else ""}")
         scopePermissionsRepository.revokeAccessPermission(
             scopeAddress = gatewayEvent.scopeAddress,
             granteeAddress = gatewayEvent.targetAccount,
+            grantId = gatewayEvent.accessGrantId,
         )
     }
 

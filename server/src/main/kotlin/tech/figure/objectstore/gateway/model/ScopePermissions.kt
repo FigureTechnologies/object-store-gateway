@@ -18,7 +18,7 @@ object ScopePermissionsTable : IntIdTable("scope_permissions", "id") {
     val grantId = text("grant_id").nullable()
 
     init {
-        uniqueIndex(scopeAddress, granteeAddress, granterAddress)
+        uniqueIndex(scopeAddress, granteeAddress, granterAddress, grantId)
     }
 }
 
@@ -49,13 +49,7 @@ open class ScopePermissionClass : IntEntityClass<ScopePermission>(ScopePermissio
         ScopePermissionsTable.scopeAddress.eq(scopeAddress)
             .and { ScopePermissionsTable.granteeAddress eq granteeAddress }
             .and { ScopePermissionsTable.granterAddress eq granterAddress }
-            .let { query ->
-                if (grantId != null) {
-                    query.and { ScopePermissionsTable.grantId.eq(grantId) }
-                } else {
-                    query
-                }
-            }
+            .and { ScopePermissionsTable.grantId eq grantId }
     }.firstOrNull()
 
     fun findAllByScopeIdAndGranteeAddress(scopeAddress: String, granteeAddress: String): SizedIterable<ScopePermission> = find {
