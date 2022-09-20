@@ -4,6 +4,11 @@ package io.provenance.objectstore.gateway;
 
 service Gateway {
   rpc FetchObject (FetchObjectRequest) returns (FetchObjectResponse) {};
+  rpc PutObject (PutObjectRequest) returns (PutObjectResponse) {};
+  rpc FetchObjectByHash (FetchObjectByHashRequest) returns (FetchObjectByHashResponse) {};
+
+  // todo: admin only service method to add an address to the acl for a granter
+  // todo: admin only service method to remove an address from the acl for a granter
 }
 
 message FetchObjectRequest {
@@ -11,12 +16,32 @@ message FetchObjectRequest {
   string granter_address = 2; // optional
 }
 
+
 message FetchObjectResponse {
   string scope_id = 1;
   repeated Record records = 2;
 }
 
-// todo: figure out encryption scheme
+message PutObjectRequest {
+  bytes object_bytes = 1;
+  string type = 2; // optional type information to be stored in DIME metadata
+}
+
+message PutObjectResponse {
+  string hash = 1; // base64-encoded object hash (sha-256 of object_bytes)
+}
+
+message FetchObjectByHashRequest {
+  string hash = 1;
+}
+
+message FetchObjectByHashResponse {
+  RawObject object = 1;
+  string type = 2; // type will be present if it was provided in the PutObjectRequest
+}
+
+
+// todo: figure out encryption scheme? (relying on TLS now)
 //message EncryptedRecords {
 //  bytes record_map = 1; // encrypted byte array of RecordMap
 //}
