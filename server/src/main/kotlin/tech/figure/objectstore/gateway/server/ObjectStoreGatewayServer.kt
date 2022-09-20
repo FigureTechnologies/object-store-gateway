@@ -3,6 +3,8 @@ package tech.figure.objectstore.gateway.server
 import io.grpc.stub.StreamObserver
 import mu.KLogging
 import org.lognet.springboot.grpc.GRpcService
+import tech.figure.objectstore.gateway.GatewayGrpc
+import tech.figure.objectstore.gateway.GatewayOuterClass
 import tech.figure.objectstore.gateway.address
 import tech.figure.objectstore.gateway.publicKey
 import tech.figure.objectstore.gateway.server.interceptor.JwtServerInterceptor

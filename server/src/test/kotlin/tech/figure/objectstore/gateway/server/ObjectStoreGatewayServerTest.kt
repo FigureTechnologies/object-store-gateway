@@ -16,6 +16,7 @@ import tech.figure.objectstore.gateway.GatewayOuterClass
 import tech.figure.objectstore.gateway.helpers.getValidFetchObjectByHashRequest
 import tech.figure.objectstore.gateway.helpers.getValidPutObjectRequest
 import tech.figure.objectstore.gateway.helpers.getValidRequest
+import tech.figure.objectstore.gateway.helpers.objectFromParts
 import tech.figure.objectstore.gateway.service.ObjectService
 import tech.figure.objectstore.gateway.service.ScopeFetchService
 import java.security.KeyPair

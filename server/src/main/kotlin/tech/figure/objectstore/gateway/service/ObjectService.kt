@@ -8,6 +8,7 @@ import io.provenance.scope.objectstore.util.toHex
 import io.provenance.scope.util.NotFoundException
 import io.provenance.scope.util.base64String
 import org.springframework.stereotype.Component
+import tech.figure.objectstore.gateway.GatewayOuterClass
 import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
 import tech.figure.objectstore.gateway.exception.AccessDeniedException
 import tech.figure.objectstore.gateway.repository.ObjectPermissionsRepository
