@@ -4,14 +4,13 @@ import org.jetbrains.exposed.dao.IntEntity
 import org.jetbrains.exposed.dao.IntEntityClass
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.IntIdTable
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.and
 import java.time.OffsetDateTime
 
 object ObjectPermissionsTable : IntIdTable("object_permissions", "id") {
     val objectHash = text("object_hash").index()
     val granteeAddress = varchar("grantee_address", 44)
-    val objectSize = long("object_size")
+    val objectSizeBytes = long("object_size_bytes")
     val created = offsetDatetime("created").clientDefault { OffsetDateTime.now() }
 
     init {
@@ -20,10 +19,10 @@ object ObjectPermissionsTable : IntIdTable("object_permissions", "id") {
 }
 
 open class ObjectPermissionClass : IntEntityClass<ObjectPermission>(ObjectPermissionsTable) {
-    fun new(objectHash: String, granteeAddress: String, objectSize: Long) = findByObjectHashAndAddress(objectHash, granteeAddress) ?: new() {
+    fun new(objectHash: String, granteeAddress: String, objectSizeBytes: Long) = findByObjectHashAndAddress(objectHash, granteeAddress) ?: new() {
         this.objectHash = objectHash
         this.granteeAddress = granteeAddress
-        this.objectSize = objectSize
+        this.objectSizeBytes = objectSizeBytes
     }
 
     fun findByObjectHashAndAddress(objectHash: String, granteeAddress: String) = find {
@@ -37,6 +36,6 @@ class ObjectPermission(id: EntityID<Int>) : IntEntity(id) {
 
     var objectHash by ObjectPermissionsTable.objectHash
     var granteeAddress by ObjectPermissionsTable.granteeAddress
-    var objectSize by ObjectPermissionsTable.objectSize
+    var objectSizeBytes by ObjectPermissionsTable.objectSizeBytes
     val created by ObjectPermissionsTable.created
 }
