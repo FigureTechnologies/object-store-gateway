@@ -5,6 +5,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.provenance.objectstore.gateway.configuration.ProvenanceProperties
 import io.provenance.objectstore.gateway.exception.AccessDeniedException
+import io.provenance.objectstore.gateway.helpers.randomObject
 import io.provenance.objectstore.gateway.model.ObjectPermissionsTable.objectHash
 import io.provenance.objectstore.gateway.repository.ObjectPermissionsRepository
 import io.provenance.objectstore.proto.Objects
@@ -48,51 +49,51 @@ class ObjectServiceTest {
 
     @Test
     fun `putObject should send object to object store and insert permissions record`() {
-        val objectBytes = Random.nextBytes(100)
+        val obj = randomObject()
+        val objectBytes = obj.toByteArray()
         val objectHash = objectBytes.sha256String()
 
         every { osClient.osClient.put(any<InputStream>(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(ownerKey), mapOf(), any(), false) } returns Futures.immediateFuture(
             Objects.ObjectResponse.newBuilder().setHash(objectHash.base64Decode().toByteString()).build()
         )
 
-        every { objectPermissionsRepository.addAccessPermission(objectHash, ownerKey.getAddress(false)) } returns Unit
+        every { objectPermissionsRepository.addAccessPermission(objectHash, ownerKey.getAddress(false), objectBytes.size.toLong()) } returns Unit
 
-        val response = objectService.putObject(objectBytes, null, ownerKey)
+        val response = objectService.putObject(obj, ownerKey)
 
         assertEquals(objectHash, response)
     }
 
     @Test
     fun `putObject should send object to object store with type`() {
-        val objectBytes = Random.nextBytes(100)
+        val obj = randomObject("cool_type_bro")
+        val objectBytes = obj.toByteArray()
         val objectHash = objectBytes.sha256String()
-        val objectType = "cool_type_bro"
 
-        every { osClient.osClient.put(any<InputStream>(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(ownerKey), mapOf(ObjectService.OBJECT_META_TYPE_KEY to objectType), any(), false) } returns Futures.immediateFuture(
+        every { osClient.osClient.put(any<InputStream>(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(ownerKey), mapOf(), any(), false) } returns Futures.immediateFuture(
             Objects.ObjectResponse.newBuilder().setHash(objectHash.base64Decode().toByteString()).build()
         )
 
-        every { objectPermissionsRepository.addAccessPermission(objectHash, ownerKey.getAddress(false)) } returns Unit
+        every { objectPermissionsRepository.addAccessPermission(objectHash, ownerKey.getAddress(false), objectBytes.size.toLong()) } returns Unit
 
-        val response = objectService.putObject(objectBytes, objectType, ownerKey)
+        val response = objectService.putObject(obj, ownerKey)
 
         assertEquals(objectHash, response)
     }
 
     @Test
     fun `getObject should retrieve object if permissions present`() {
-        val objectBytes = Random.nextBytes(100)
+        val obj = randomObject("cool_type_bro")
+        val objectBytes = obj.toByteArray()
         val objectHash = objectBytes.sha256String()
-        val objectType = "cool_type_bro"
 
-        configureOsClientGet(objectBytes, objectType)
+        configureOsClientGet(objectBytes)
 
         every { objectPermissionsRepository.hasAccessPermission(objectHash, ownerKey.getAddress(false)) } returns true
 
         val response = objectService.getObject(objectHash, ownerKey.getAddress(false))
 
-        assertEquals(objectBytes, response.first)
-        assertEquals(objectType, response.second)
+        assertEquals(obj, response)
     }
 
     @Test
@@ -109,7 +110,7 @@ class ObjectServiceTest {
         assertEquals("PERMISSION_DENIED: Object access not granted to ${ownerKey.getAddress(false)} [hash: $objectHash]", exception.message)
     }
 
-    private fun configureOsClientGet(objectBytes: ByteArray, objectType: String? = null) {
+    private fun configureOsClientGet(objectBytes: ByteArray) {
         every { osClient.osClient.get(objectBytes.sha256(), masterKey.publicKey) } returns Futures.immediateFuture(
             mockk<DIMEInputStream>().also {
                 every { it.getDecryptedPayload(any()) } returns mockk<SignatureInputStream>().also { sigStream ->
@@ -117,7 +118,6 @@ class ObjectServiceTest {
                     every { sigStream.verify() } returns true
                     every { sigStream.close() } returns Unit
                 }
-                every { it.metadata } returns if (objectType == null) mapOf() else mapOf(ObjectService.OBJECT_META_TYPE_KEY to objectType)
                 every { it.close() } returns Unit
             }
         )

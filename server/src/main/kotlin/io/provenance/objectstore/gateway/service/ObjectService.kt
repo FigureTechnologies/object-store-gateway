@@ -1,7 +1,9 @@
 package io.provenance.objectstore.gateway.service
 
+import io.provenance.objectstore.gateway.GatewayOuterClass
 import io.provenance.objectstore.gateway.configuration.ProvenanceProperties
 import io.provenance.objectstore.gateway.exception.AccessDeniedException
+import io.provenance.objectstore.gateway.model.ObjectPermissionsTable.objectSize
 import io.provenance.objectstore.gateway.repository.ObjectPermissionsRepository
 import io.provenance.scope.encryption.model.KeyRef
 import io.provenance.scope.encryption.util.getAddress
@@ -21,28 +23,22 @@ class ObjectService(
     private val objectPermissionsRepository: ObjectPermissionsRepository,
     private val provenanceProperties: ProvenanceProperties,
 ) {
-    companion object {
-        const val OBJECT_META_TYPE_KEY = "object_type"
-    }
-
-    fun putObject(objectBytes: ByteArray, type: String?, requesterPublicKey: PublicKey): String {
-        val metadata = if (type != null) {
-            mapOf(OBJECT_META_TYPE_KEY to type)
-        } else mapOf()
+    fun putObject(obj: GatewayOuterClass.ObjectWithMeta, requesterPublicKey: PublicKey): String {
+        val objectBytes = obj.toByteArray()
+        val objectSize = objectBytes.size.toLong()
 
         return objectStoreClient.osClient.put(
             ByteArrayInputStream(objectBytes),
             masterKey.publicKey,
             masterKey.signer(),
-            objectBytes.size.toLong(),
+            objectSize,
             setOf(requesterPublicKey),
-            metadata
         ).get().hash.toByteArray().base64String().also { hash ->
-            objectPermissionsRepository.addAccessPermission(hash, requesterPublicKey.getAddress(provenanceProperties.mainNet))
+            objectPermissionsRepository.addAccessPermission(hash, requesterPublicKey.getAddress(provenanceProperties.mainNet), objectSize)
         }
     }
 
-    fun getObject(hash: String, requesterAddress: String): Pair<ByteArray, String?> {
+    fun getObject(hash: String, requesterAddress: String): GatewayOuterClass.ObjectWithMeta {
         if (!objectPermissionsRepository.hasAccessPermission(hash, requesterAddress)) {
             throw AccessDeniedException("Object access not granted to $requesterAddress [hash: $hash]")
         }
@@ -60,7 +56,7 @@ class ObjectService(
                         )
                     }
                 }
-            } to dimeInputStream.metadata[OBJECT_META_TYPE_KEY]
-        }
+            }
+        }.let(GatewayOuterClass.ObjectWithMeta::parseFrom)
     }
 }

@@ -23,12 +23,11 @@ message FetchObjectResponse {
 }
 
 message PutObjectRequest {
-  bytes object_bytes = 1;
-  string type = 2; // optional type information to be stored in DIME metadata
+  ObjectWithMeta object = 1;
 }
 
 message PutObjectResponse {
-  string hash = 1; // base64-encoded object hash (sha-256 of object_bytes)
+  string hash = 1; // base64-encoded object hash (sha-256 of provided ObjectWithMeta [object] serialized proto)
 }
 
 message FetchObjectByHashRequest {
@@ -36,10 +35,13 @@ message FetchObjectByHashRequest {
 }
 
 message FetchObjectByHashResponse {
-  RawObject object = 1;
-  string type = 2; // type will be present if it was provided in the PutObjectRequest
+  ObjectWithMeta object = 1;
 }
 
+message ObjectWithMeta {
+  bytes object_bytes = 1;
+  string type = 2; // optional type
+}
 
 // todo: figure out encryption scheme? (relying on TLS now)
 //message EncryptedRecords {
@@ -52,11 +54,11 @@ message FetchObjectByHashResponse {
 
 message Record {
   string name = 1;
-  repeated RawObject inputs = 2;
-  repeated RawObject outputs = 3;
+  repeated RecordObject inputs = 2;
+  repeated RecordObject outputs = 3;
 }
 
-message RawObject {
+message RecordObject {
   string hash = 1;
   string type = 2;
   bytes object_bytes = 3;

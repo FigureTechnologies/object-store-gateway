@@ -1,7 +1,8 @@
 CREATE TABLE IF NOT EXISTS object_permissions (
-    id INTEGER PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     object_hash TEXT NOT NULL,
     grantee_address VARCHAR(44) NOT NULL,
+    object_size BIGINT NOT NULL,
     created TIMESTAMPTZ NOT NULL
 );
 

@@ -8,7 +8,6 @@ import io.provenance.objectstore.gateway.publicKey
 import io.provenance.objectstore.gateway.server.interceptor.JwtServerInterceptor
 import io.provenance.objectstore.gateway.service.ObjectService
 import io.provenance.objectstore.gateway.service.ScopeFetchService
-import io.provenance.objectstore.gateway.util.toByteString
 import mu.KLogging
 import org.lognet.springboot.grpc.GRpcService
 
@@ -39,13 +38,13 @@ class ObjectStoreGatewayServer(
         request: GatewayOuterClass.PutObjectRequest,
         responseObserver: StreamObserver<GatewayOuterClass.PutObjectResponse>
     ) {
-        objectService.putObject(request.objectBytes.toByteArray(), request.type.takeIf { it.isNotBlank() }, publicKey()).let {
-        responseObserver.onNext(
-            GatewayOuterClass.PutObjectResponse.newBuilder()
-                .setHash(it)
-                .build()
-        )
-    }
+        objectService.putObject(request.`object`, publicKey()).let {
+            responseObserver.onNext(
+                GatewayOuterClass.PutObjectResponse.newBuilder()
+                    .setHash(it)
+                    .build()
+            )
+        }
         responseObserver.onCompleted()
     }
 
@@ -53,16 +52,10 @@ class ObjectStoreGatewayServer(
         request: GatewayOuterClass.FetchObjectByHashRequest,
         responseObserver: StreamObserver<GatewayOuterClass.FetchObjectByHashResponse>
     ) {
-        objectService.getObject(request.hash, address()).let { (objectBytes, type) ->
+        objectService.getObject(request.hash, address()).let { obj ->
             responseObserver.onNext(
                 GatewayOuterClass.FetchObjectByHashResponse.newBuilder()
-                    .apply {
-                        objectBuilder.setHash(request.hash)
-                            .setObjectBytes(objectBytes.toByteString())
-                        if (type != null) {
-                            objectBuilder.type = type
-                        }
-                    }
+                    .setObject(obj)
                     .build()
             )
             responseObserver.onCompleted()

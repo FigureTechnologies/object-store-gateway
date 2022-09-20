@@ -1,5 +1,7 @@
 package io.provenance.objectstore.gateway.repository
 
+import io.provenance.objectstore.gateway.GatewayOuterClass
+import io.provenance.objectstore.gateway.helpers.randomObject
 import io.provenance.objectstore.gateway.model.ObjectPermission
 import io.provenance.objectstore.gateway.model.ObjectPermissionsTable
 import io.provenance.scope.encryption.ecies.ProvenanceKeyGenerator
@@ -20,7 +22,9 @@ import kotlin.test.assertTrue
 class ObjectPermissionsRepositoryTest {
     lateinit var repository: ObjectPermissionsRepository
 
-    val objectHash = Random.nextBytes(100).sha256String()
+    val obj = randomObject()
+    val objectHash = obj.objectBytes.toByteArray().sha256String()
+    val objectSize = obj.toByteArray().size.toLong()
     val granteeAddress = ProvenanceKeyGenerator.generateKeyPair().public.getAddress(false)
 
     @BeforeEach
@@ -31,7 +35,7 @@ class ObjectPermissionsRepositoryTest {
 
     @Test
     fun `addAccessPermission should create access permission record`() {
-        repository.addAccessPermission(objectHash, granteeAddress)
+        repository.addAccessPermission(objectHash, granteeAddress, objectSize)
 
         transaction {
             ObjectPermission.findByObjectHashAndAddress(objectHash, granteeAddress).also { record ->
@@ -44,7 +48,7 @@ class ObjectPermissionsRepositoryTest {
 
     @Test
     fun `hasAccessPermission should return true if permission set up`() {
-        transaction { ObjectPermission.new(objectHash, granteeAddress) }
+        transaction { ObjectPermission.new(objectHash, granteeAddress, objectSize) }
 
         val hasAccess = repository.hasAccessPermission(objectHash, granteeAddress)
 

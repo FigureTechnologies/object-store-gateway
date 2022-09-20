@@ -110,10 +110,10 @@ class GatewayClient(val config: ClientConfig) : Closeable {
             .withInterceptors(MetadataUtils.newAttachHeadersInterceptor(jwt.toJwtMeta()))
             .putObject(
                 GatewayOuterClass.PutObjectRequest.newBuilder()
-                    .setObjectBytes(objectBytes.toByteString())
                     .apply {
+                        objectBuilder.setObjectBytes(objectBytes.toByteString())
                         if (objectType != null) {
-                            type = objectType
+                            objectBuilder.type = objectType
                         }
                     }
                     .build()

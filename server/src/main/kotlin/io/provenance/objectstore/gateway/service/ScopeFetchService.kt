@@ -64,7 +64,7 @@ class ScopeFetchService(
                     .setName(record.record.name)
                     .addAllInputs(
                         record.record.inputsList.map {
-                            GatewayOuterClass.RawObject.newBuilder()
+                            GatewayOuterClass.RecordObject.newBuilder()
                                 .setHash(it.hash)
                                 .setType(it.typeName)
                                 .setObjectBytes(objectStoreClient.getJar(it.hash.base64Decode(), encryptionKey).get().readAllBytes().toByteString())
@@ -73,7 +73,7 @@ class ScopeFetchService(
                     )
                     .addAllOutputs(
                         record.record.outputsList.map {
-                            GatewayOuterClass.RawObject.newBuilder()
+                            GatewayOuterClass.RecordObject.newBuilder()
                                 .setHash(it.hash)
                                 .setType(record.record.resultType())
                                 .setObjectBytes(objectStoreClient.getJar(it.hash.base64Decode(), encryptionKey).get().readAllBytes().toByteString())

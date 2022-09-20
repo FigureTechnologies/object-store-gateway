@@ -6,8 +6,8 @@ import org.springframework.stereotype.Component
 
 @Component
 class ObjectPermissionsRepository {
-    fun addAccessPermission(objectHash: String, granteeAddress: String) {
-        transaction { ObjectPermission.new(objectHash, granteeAddress) }
+    fun addAccessPermission(objectHash: String, granteeAddress: String, objectSize: Long) {
+        transaction { ObjectPermission.new(objectHash, granteeAddress, objectSize) }
     }
 
     fun hasAccessPermission(objectHash: String, granteeAddress: String): Boolean = transaction {

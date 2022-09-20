@@ -10,6 +10,7 @@ import io.provenance.objectstore.gateway.GatewayOuterClass
 import io.provenance.objectstore.gateway.helpers.getValidFetchObjectByHashRequest
 import io.provenance.objectstore.gateway.helpers.getValidPutObjectRequest
 import io.provenance.objectstore.gateway.helpers.getValidRequest
+import io.provenance.objectstore.gateway.helpers.objectFromParts
 import io.provenance.objectstore.gateway.service.ObjectService
 import io.provenance.objectstore.gateway.service.ScopeFetchService
 import io.provenance.scope.encryption.ecies.ProvenanceKeyGenerator
@@ -49,8 +50,8 @@ class ObjectStoreGatewayServerTest {
         val dummyRecords = listOf(
             GatewayOuterClass.Record.newBuilder()
                 .setName("dummyRecordName")
-                .addInputs(GatewayOuterClass.RawObject.newBuilder().setObjectBytes(Random.nextBytes(100).toByteString()))
-                .addOutputs(GatewayOuterClass.RawObject.newBuilder().setObjectBytes(Random.nextBytes(100).toByteString()))
+                .addInputs(GatewayOuterClass.RecordObject.newBuilder().setObjectBytes(Random.nextBytes(100).toByteString()))
+                .addOutputs(GatewayOuterClass.RecordObject.newBuilder().setObjectBytes(Random.nextBytes(100).toByteString()))
                 .build()
         )
 
@@ -85,8 +86,8 @@ class ObjectStoreGatewayServerTest {
     fun testSuccessfulPutObject(request: GatewayOuterClass.PutObjectRequest) {
         val responseObserver: StreamObserver<GatewayOuterClass.PutObjectResponse> = mockk()
 
-        val byteHash = request.objectBytes.toByteArray().sha256String()
-        every { objectService.putObject(any(), request.type.takeIf { it.isNotBlank() }, keyPair.public) } returns byteHash
+        val byteHash = request.`object`.toByteArray().sha256String()
+        every { objectService.putObject(request.`object`, keyPair.public) } returns byteHash
 
         every { responseObserver.onNext(any()) } returns mockk()
         every { responseObserver.onCompleted() } returns mockk()
@@ -116,9 +117,10 @@ class ObjectStoreGatewayServerTest {
     fun testSuccessfulGetObjectByHash(objectBytes: ByteArray, type: String? = null) {
         val responseObserver: StreamObserver<GatewayOuterClass.FetchObjectByHashResponse> = mockk()
         val ownerAddress = keyPair.public.getAddress(false)
+        val obj = objectFromParts(objectBytes, type)
 
         val byteHash = objectBytes.sha256String()
-        every { objectService.getObject(byteHash, ownerAddress) } returns (objectBytes to type)
+        every { objectService.getObject(byteHash, ownerAddress) } returns obj
 
         every { responseObserver.onNext(any()) } returns mockk()
         every { responseObserver.onCompleted() } returns mockk()
@@ -128,14 +130,7 @@ class ObjectStoreGatewayServerTest {
         verifyAll {
             responseObserver.onNext(
                 GatewayOuterClass.FetchObjectByHashResponse.newBuilder()
-                    .apply {
-                        objectBuilder
-                            .setHash(byteHash)
-                            .setObjectBytes(objectBytes.toByteString())
-                        if (type != null) {
-                            objectBuilder.type = type
-                        }
-                    }
+                    .setObject(obj)
                     .build()
             )
             responseObserver.onCompleted()
