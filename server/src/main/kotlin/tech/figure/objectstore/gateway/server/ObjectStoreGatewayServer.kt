@@ -1,7 +1,6 @@
 package tech.figure.objectstore.gateway.server
 
 import io.grpc.stub.StreamObserver
-
 import mu.KLogging
 import org.lognet.springboot.grpc.GRpcService
 import tech.figure.objectstore.gateway.address
@@ -9,7 +8,6 @@ import tech.figure.objectstore.gateway.publicKey
 import tech.figure.objectstore.gateway.server.interceptor.JwtServerInterceptor
 import tech.figure.objectstore.gateway.service.ObjectService
 import tech.figure.objectstore.gateway.service.ScopeFetchService
-import tech.figure.objectstore.gateway.util.toByteString
 
 @GRpcService(interceptors = [JwtServerInterceptor::class])
 class ObjectStoreGatewayServer(

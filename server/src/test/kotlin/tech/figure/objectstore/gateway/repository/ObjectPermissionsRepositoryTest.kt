@@ -11,7 +11,6 @@ import org.springframework.boot.test.context.SpringBootTest
 import tech.figure.objectstore.gateway.helpers.randomObject
 import tech.figure.objectstore.gateway.model.ObjectPermission
 import tech.figure.objectstore.gateway.model.ObjectPermissionsTable
-import kotlin.random.Random
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
