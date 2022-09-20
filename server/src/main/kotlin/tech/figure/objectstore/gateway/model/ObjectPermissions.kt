@@ -1,0 +1,41 @@
+package tech.figure.objectstore.gateway.model
+import org.jetbrains.exposed.dao.IntEntity
+import org.jetbrains.exposed.dao.IntEntityClass
+import org.jetbrains.exposed.dao.id.EntityID
+import org.jetbrains.exposed.dao.id.IntIdTable
+import org.jetbrains.exposed.sql.and
+import tech.figure.objectstore.gateway.sql.offsetDatetime
+import java.time.OffsetDateTime
+
+object ObjectPermissionsTable : IntIdTable("object_permissions", "id") {
+    val objectHash = text("object_hash").index()
+    val granteeAddress = varchar("grantee_address", 44)
+    val objectSizeBytes = long("object_size_bytes")
+    val created = offsetDatetime("created").clientDefault { OffsetDateTime.now() }
+
+    init {
+        uniqueIndex(objectHash, granteeAddress)
+    }
+}
+
+open class ObjectPermissionClass : IntEntityClass<ObjectPermission>(ObjectPermissionsTable) {
+    fun new(objectHash: String, granteeAddress: String, objectSizeBytes: Long) = findByObjectHashAndAddress(objectHash, granteeAddress) ?: new() {
+        this.objectHash = objectHash
+        this.granteeAddress = granteeAddress
+        this.objectSizeBytes = objectSizeBytes
+    }
+
+    fun findByObjectHashAndAddress(objectHash: String, granteeAddress: String) = find {
+        ObjectPermissionsTable.objectHash eq objectHash and
+            (ObjectPermissionsTable.granteeAddress eq granteeAddress)
+    }.firstOrNull()
+}
+
+class ObjectPermission(id: EntityID<Int>) : IntEntity(id) {
+    companion object : ObjectPermissionClass()
+
+    var objectHash by ObjectPermissionsTable.objectHash
+    var granteeAddress by ObjectPermissionsTable.granteeAddress
+    var objectSizeBytes by ObjectPermissionsTable.objectSizeBytes
+    val created by ObjectPermissionsTable.created
+}

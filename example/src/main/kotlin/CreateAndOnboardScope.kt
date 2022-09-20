@@ -45,8 +45,8 @@ import io.provenance.scope.objectstore.client.OsClient
 import io.provenance.scope.util.MetadataAddress
 import io.provenance.scope.util.sha256
 import io.provenance.scope.util.toByteString
-import io.provenance.objectstore.gateway.client.ClientConfig
-import io.provenance.objectstore.gateway.client.GatewayClient
+import tech.figure.objectstore.gateway.client.ClientConfig
+import tech.figure.objectstore.gateway.client.GatewayClient
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import tech.figure.proto.util.toProtoUUID
 import java.net.URI
@@ -213,7 +213,12 @@ fun main() {
     val validatorSigner = WalletSigner(NetworkType.TESTNET, validatorMnemonic)
     println("validator address from mnemonic: ${validatorSigner.address()}")
 
-    GatewayClient(ClientConfig(URI("grpc://localhost:8080"), false)).use { gatewayClient ->
+    GatewayClient(
+        ClientConfig(
+            URI("grpc://localhost:8080"),
+            false
+        )
+    ).use { gatewayClient ->
         while (true) {
             try {
                 val response = gatewayClient.requestScopeData(scopeAddress, validatorSigner.account.keyPair.toJavaECKeyPair())

@@ -1,5 +1,3 @@
-import org.gradle.internal.impldep.org.eclipse.jgit.hooks.Hooks.preCommit
-
 rootProject.name = "object-store-gateway"
 
 include("server")
