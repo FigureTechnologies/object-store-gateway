@@ -1,6 +1,6 @@
 FROM openjdk:11
 
-LABEL org.opencontainers.image.source=https://github.com/FigureTechnologies/object-store-gateway
+LABEL org.opencontainers.image.source=https://github.com/figuretechnologies/object-store-gateway
 
 ADD ./build/libs/*.jar /service.jar
 ADD ./docker/docker-entrypoint.sh /docker-entrypoint.sh
