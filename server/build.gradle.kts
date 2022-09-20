@@ -29,7 +29,6 @@ configurations.all {
 dependencies {
     implementation(projects.proto)
     implementation(projects.shared)
-    implementation(projects.migrations)
 
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
     listOf(
