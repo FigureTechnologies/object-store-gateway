@@ -27,6 +27,8 @@ import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
 import tech.figure.objectstore.gateway.eventstream.AcContractKey
 import tech.figure.objectstore.gateway.eventstream.GatewayExpectedAttribute
 import tech.figure.objectstore.gateway.eventstream.GatewayExpectedEventType
+import tech.figure.objectstore.gateway.extensions.checkNotNull
+import tech.figure.objectstore.gateway.model.ScopePermission
 import tech.figure.objectstore.gateway.model.ScopePermissionsTable
 import tech.figure.objectstore.gateway.repository.ScopePermissionsRepository
 import tech.figure.objectstore.gateway.util.toByteString
@@ -256,6 +258,26 @@ class StreamEventHandlerServiceTest {
         )
     }
 
+    @Test
+    fun `StreamEventHandlerService removes all and disregards grant id when revoke requests that`() {
+        setUp()
+
+        val grantId = "the best grant ever"
+
+        submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT, grantId = grantId)
+
+        val scopePermission = transaction {
+            ScopePermission.find { ScopePermissionsTable.grantId eq grantId }
+                .singleOrNull()
+                .checkNotNull { "A single record should be inserted with the given grant id after specifying the grant id" }
+        }
+        assertEquals(
+            expected = onboardingOwnerAddress,
+            actual = scopePermission.granterAddress,
+            message = "The correct granter should be selected",
+        )
+    }
+
     private fun submitAssetClassificationEvent() {
         submitEvent(
             attributes = listOf(
@@ -268,12 +290,13 @@ class StreamEventHandlerServiceTest {
         )
     }
 
-    private fun submitGatewayEvent(eventType: GatewayExpectedEventType) {
+    private fun submitGatewayEvent(eventType: GatewayExpectedEventType, grantId: String? = null) {
         submitEvent(
-            attributes = listOf(
+            attributes = listOfNotNull(
                 GatewayExpectedAttribute.EVENT_TYPE.key to eventType.wasmName,
                 GatewayExpectedAttribute.SCOPE_ADDRESS.key to scopeAddress,
                 GatewayExpectedAttribute.TARGET_ACCOUNT.key to grantee.bech32Address,
+                grantId?.let { GatewayExpectedAttribute.ACCESS_GRANT_ID.key to it },
             )
         )
     }
