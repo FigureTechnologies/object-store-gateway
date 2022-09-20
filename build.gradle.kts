@@ -1,4 +1,4 @@
-group = "io.provenance.objectstore.gateway"
+group = "tech.figure.objectstore.gateway"
 version = project.property("version")?.takeIf { it != "unspecified" } ?: "1.0-SNAPSHOT"
 
 plugins {
@@ -22,7 +22,7 @@ nexusPublishing {
             snapshotRepositoryUrl.set(uri("https://s01.oss.sonatype.org/content/repositories/snapshots/"))
             username.set(findProject("ossrhUsername")?.toString() ?: System.getenv("OSSRH_USERNAME"))
             password.set(findProject("ossrhPassword")?.toString() ?: System.getenv("OSSRH_PASSWORD"))
-            stagingProfileId.set("3180ca260b82a7") // prevents querying for the staging profile id, performance optimization
+            stagingProfileId.set("858b6e4de4734a") // tech.figure staging profile id
         }
     }
 }
@@ -46,15 +46,15 @@ subprojects {
         publishing {
             publications {
                 create<MavenPublication>("maven") {
-                    groupId = "io.provenance.objectstore.gateway"
+                    groupId = "tech.figure.objectstore.gateway"
                     artifactId = projectName
 
                     from(components["java"])
 
                     pom {
-                        name.set("Provenance Object Store Gateway Client Library")
-                        description.set("A library for interacting with the Provenance Object Store Gateway")
-                        url.set("https://provenance.io")
+                        name.set("Figure Tech Object Store Gateway Client Library")
+                        description.set("A library for interacting with the Figure Tech Object Store Gateway")
+                        url.set("https://figure.tech")
 
                         licenses {
                             license {
@@ -69,12 +69,17 @@ subprojects {
                                 name.set("Pierce Trey")
                                 email.set("ptrey@figure.com")
                             }
+                            developer {
+                                id.set("hyperschwartz")
+                                name.set("Jake Schwartz")
+                                email.set("jschwartz@figure.com")
+                            }
                         }
 
                         scm {
-                            connection.set("git@github.com:provenance-io/object-store-gateway.git")
-                            developerConnection.set("git@github.com:provenance-io/object-store-gateway.git")
-                            url.set("https://github.com/provenance-io/object-store-gateway")
+                            connection.set("git@github.com:FigureTechnologies/object-store-gateway.git")
+                            developerConnection.set("git@github.com:FigureTechnologies/object-store-gateway.git")
+                            url.set("https://github.com/FigureTechnologies/object-store-gateway")
                         }
                     }
                 }

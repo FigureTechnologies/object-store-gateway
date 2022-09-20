@@ -19,7 +19,7 @@ In order for this data to be fetched, the following criteria must be met.
       include a party, value owner, or data access address matching one of the private keys registered with this service
       will be ignored.
 
-In order to facilitate this scope data permissioning, this service listens on the [Provenance Event Stream](https://github.com/provenance-io/event-stream)
+In order to facilitate this scope data permissioning, this service listens on the [Figure Tech Event Stream](https://github.com/FigureTechnologies/event-stream)
 for asset classification contract events, and stores a lookup of the address registered to this service to the address
 being assigned as an asset verifier. Later, when a request arrives for scope data, the above permissioning rules are
 used to approve/deny access. This service can only ever decrypt and return data for a private key that is registered with
