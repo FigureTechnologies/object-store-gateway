@@ -1,17 +1,18 @@
 package tech.figure.objectstore.gateway.repository
 
-import org.jetbrains.exposed.sql.and
-import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.springframework.stereotype.Service
 import tech.figure.objectstore.gateway.model.ScopePermission
-import tech.figure.objectstore.gateway.model.ScopePermissionsTable
-import tech.figure.objectstore.gateway.model.ScopePermissionsTable.granterAddress
 
 @Service
 class ScopePermissionsRepository {
-    fun addAccessPermission(scopeAddress: String, granteeAddress: String, granterAddress: String) {
-        transaction { ScopePermission.new(scopeAddress, granteeAddress, granterAddress) }
+    fun addAccessPermission(
+        scopeAddress: String,
+        granteeAddress: String,
+        granterAddress: String,
+        grantId: String? = null,
+    ) {
+        transaction { ScopePermission.new(scopeAddress, granteeAddress, granterAddress, grantId) }
     }
 
     fun getAccessGranterAddresses(scopeAddress: String, granteeAddress: String): List<String> = transaction {
@@ -25,11 +26,14 @@ class ScopePermissionsRepository {
      * @param scopeAddress The bech32 address of the scope for which to revoke access.
      * @param granteeAddress The address that has been granted access to the scope.  All records that link this address
      * to the target scope will be removed.
+     * @param grantId An optional parameter that denotes that only records with this specific grant ID should be deleted.
+     * If omitted, all records with this scopeAddress and granteeAddress combination will be deleted.
      */
-    fun revokeAccessPermission(scopeAddress: String, granteeAddress: String): Int = transaction {
-        ScopePermissionsTable.deleteWhere {
-            ScopePermissionsTable.scopeAddress.eq(scopeAddress)
-                .and { ScopePermissionsTable.granteeAddress.eq(granteeAddress) }
-        }
+    fun revokeAccessPermission(scopeAddress: String, granteeAddress: String, grantId: String? = null): Int = transaction {
+        ScopePermission.revokeAccessPermission(
+            scopeAddress = scopeAddress,
+            granteeAddress = granteeAddress,
+            grantId = grantId,
+        )
     }
 }

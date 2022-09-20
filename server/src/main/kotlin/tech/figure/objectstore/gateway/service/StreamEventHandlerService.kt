@@ -77,6 +77,7 @@ class StreamEventHandlerService(
             scopeAddress = gatewayEvent.scopeAddress,
             granterAddress = granterAddress,
             granteeAddress = gatewayEvent.targetAccount,
+            grantId = gatewayEvent.accessGrantId,
         )
     }
 
@@ -223,12 +224,15 @@ class StreamEventHandlerService(
      * @param granteeAddress The bech32 address of the target account for which to permit scope record access.
      * @param granterAddress The bech32 address of the key that will be used to deserialize object store scope record data
      * upon requests made by the grantee.
+     * @param grantId An optional parameter that denotes that only records with this specific grant ID should be deleted.
+     * If omitted, all records with this scopeAddress and granteeAddress combination will be deleted.
      */
     private fun handleAccessGrant(
         txHash: String,
         scopeAddress: String,
         granteeAddress: String,
         granterAddress: String,
+        grantId: String? = null,
     ) {
         // fetch scope and add all hashes to lookup? Or just add scope to lookup? (probably do all hashes in v2)
         logger.info("[ACCESS GRANT | Tx: $txHash]: Adding account [$granteeAddress] to access list for scope [$scopeAddress] with granter [$granterAddress]")
@@ -236,6 +240,7 @@ class StreamEventHandlerService(
             scopeAddress = scopeAddress,
             granteeAddress = granteeAddress,
             granterAddress = granterAddress,
+            grantId = grantId,
         )
     }
 }
