@@ -7,11 +7,15 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verifyAll
 import io.provenance.objectstore.gateway.GatewayOuterClass
+import io.provenance.objectstore.gateway.helpers.getValidFetchObjectByHashRequest
+import io.provenance.objectstore.gateway.helpers.getValidPutObjectRequest
 import io.provenance.objectstore.gateway.helpers.getValidRequest
+import io.provenance.objectstore.gateway.service.ObjectService
 import io.provenance.objectstore.gateway.service.ScopeFetchService
-import io.provenance.objectstore.gateway.util.toByteString
 import io.provenance.scope.encryption.ecies.ProvenanceKeyGenerator
 import io.provenance.scope.encryption.util.getAddress
+import io.provenance.scope.util.sha256String
+import io.provenance.scope.util.toByteString
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.security.KeyPair
@@ -19,7 +23,7 @@ import kotlin.random.Random
 
 class ObjectStoreGatewayServerTest {
     lateinit var scopeFetchService: ScopeFetchService
-    lateinit var responseObserver: StreamObserver<GatewayOuterClass.FetchObjectResponse>
+    lateinit var objectService: ObjectService
     val keyPair: KeyPair = ProvenanceKeyGenerator.generateKeyPair()
 
     lateinit var server: ObjectStoreGatewayServer
@@ -27,19 +31,20 @@ class ObjectStoreGatewayServerTest {
     @BeforeEach
     fun setUp() {
         scopeFetchService = mockk()
-        responseObserver = mockk()
+        objectService = mockk()
 
         Context.current()
             .withValue(Constants.REQUESTOR_PUBLIC_KEY_CTX, keyPair.public)
             .withValue(Constants.REQUESTOR_ADDRESS_CTX, keyPair.public.getAddress(false))
             .attach()
 
-        server = ObjectStoreGatewayServer(scopeFetchService)
+        server = ObjectStoreGatewayServer(scopeFetchService, objectService)
     }
 
     @Test
     fun `fetchObject should succeed with a valid request`() {
         val request = getValidRequest()
+        val responseObserver: StreamObserver<GatewayOuterClass.FetchObjectResponse> = mockk()
 
         val dummyRecords = listOf(
             GatewayOuterClass.Record.newBuilder()
@@ -61,6 +66,76 @@ class ObjectStoreGatewayServerTest {
                 GatewayOuterClass.FetchObjectResponse.newBuilder()
                     .setScopeId(request.scopeAddress)
                     .addAllRecords(dummyRecords)
+                    .build()
+            )
+            responseObserver.onCompleted()
+        }
+    }
+
+    @Test
+    fun `putObject should succeed with a valid request without type`() {
+        testSuccessfulPutObject(getValidPutObjectRequest())
+    }
+
+    @Test
+    fun `putObject should succeed with a valid request with type`() {
+        testSuccessfulPutObject(getValidPutObjectRequest("cool_type"))
+    }
+
+    fun testSuccessfulPutObject(request: GatewayOuterClass.PutObjectRequest) {
+        val responseObserver: StreamObserver<GatewayOuterClass.PutObjectResponse> = mockk()
+
+        val byteHash = request.objectBytes.toByteArray().sha256String()
+        every { objectService.putObject(any(), request.type.takeIf { it.isNotBlank() }, keyPair.public) } returns byteHash
+
+        every { responseObserver.onNext(any()) } returns mockk()
+        every { responseObserver.onCompleted() } returns mockk()
+
+        server.putObject(request, responseObserver)
+
+        verifyAll {
+            responseObserver.onNext(
+                GatewayOuterClass.PutObjectResponse.newBuilder()
+                    .setHash(byteHash)
+                    .build()
+            )
+            responseObserver.onCompleted()
+        }
+    }
+
+    @Test
+    fun `getObjectByHash should return object with no type`() {
+        testSuccessfulGetObjectByHash(Random.nextBytes(100))
+    }
+
+    @Test
+    fun `getObjectByHash should return object with type`() {
+        testSuccessfulGetObjectByHash(Random.nextBytes(100), "my_type")
+    }
+
+    fun testSuccessfulGetObjectByHash(objectBytes: ByteArray, type: String? = null) {
+        val responseObserver: StreamObserver<GatewayOuterClass.FetchObjectByHashResponse> = mockk()
+        val ownerAddress = keyPair.public.getAddress(false)
+
+        val byteHash = objectBytes.sha256String()
+        every { objectService.getObject(byteHash, ownerAddress) } returns (objectBytes to type)
+
+        every { responseObserver.onNext(any()) } returns mockk()
+        every { responseObserver.onCompleted() } returns mockk()
+
+        server.fetchObjectByHash(getValidFetchObjectByHashRequest(byteHash), responseObserver)
+
+        verifyAll {
+            responseObserver.onNext(
+                GatewayOuterClass.FetchObjectByHashResponse.newBuilder()
+                    .apply {
+                        objectBuilder
+                            .setHash(byteHash)
+                            .setObjectBytes(objectBytes.toByteString())
+                        if (type != null) {
+                            objectBuilder.type = type
+                        }
+                    }
                     .build()
             )
             responseObserver.onCompleted()

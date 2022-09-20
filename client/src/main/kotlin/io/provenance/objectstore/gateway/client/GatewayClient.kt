@@ -3,15 +3,16 @@ package io.provenance.objectstore.gateway.client
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import io.grpc.Deadline
-import io.grpc.Metadata
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder
 import io.grpc.stub.MetadataUtils
 import io.provenance.objectstore.gateway.GatewayGrpc
 import io.provenance.objectstore.gateway.GatewayOuterClass
+import io.provenance.objectstore.gateway.util.toJwtMeta
 import io.provenance.objectstore.gatway.shared.KeyRefSecP256K1Algorithm
 import io.provenance.scope.encryption.ecies.ECUtils
 import io.provenance.scope.encryption.model.KeyRef
 import io.provenance.scope.encryption.util.getAddress
+import io.provenance.scope.util.toByteString
 import java.io.Closeable
 import java.security.KeyPair
 import java.security.PublicKey
@@ -82,22 +83,117 @@ class GatewayClient(val config: ClientConfig) : Closeable {
     /**
      * Fetch scope data from gateway, using an existing JWT as authentication
      * @param scopeAddress the scope's address
-     * @param keyRef the KeyRef of the key to sign the request with/decrypt the received response
-     * @param timeout an optional timeout for the request/used in the request to expire signature
+     * @param jwt a provenance JWT (can be created using this client's `createJwt` methods)
+     * @param timeout an optional timeout for the request
      */
     fun requestScopeData(scopeAddress: String, jwt: String, timeout: Duration = Duration.ofSeconds(10)): GatewayOuterClass.FetchObjectResponse {
-
-        val metadata = Metadata().apply {
-            put(Constants.JWT_GRPC_HEADER_KEY, jwt)
-        }
-
         return gatewayStub.withDeadline(Deadline.after(timeout.seconds, TimeUnit.SECONDS))
-            .withInterceptors(MetadataUtils.newAttachHeadersInterceptor(metadata))
+            .withInterceptors(MetadataUtils.newAttachHeadersInterceptor(jwt.toJwtMeta()))
             .fetchObject(
                 GatewayOuterClass.FetchObjectRequest.newBuilder()
                     .setScopeAddress(scopeAddress)
                     .build()
             ).get()
+    }
+
+    /**
+     * Write an object to object store via the gateway. The object will be encrypted by the server's key and the address in the JWT will be permissioned
+     * to retrieve the object.
+     *
+     * @param objectBytes the raw data to store
+     * @param objectType (optional) the type of data that this represents. This is for reference at the time of retrieval if needed
+     * @param jwt a provenance JWT (can be created using this client's `createJwt` methods)
+     * @param timeout an optional timeout for the request
+     */
+    fun putObject(objectBytes: ByteArray, objectType: String? = null, jwt: String, timeout: Duration = Duration.ofSeconds(10)): GatewayOuterClass.PutObjectResponse {
+        return gatewayStub.withDeadline(Deadline.after(timeout.seconds, TimeUnit.SECONDS))
+            .withInterceptors(MetadataUtils.newAttachHeadersInterceptor(jwt.toJwtMeta()))
+            .putObject(
+                GatewayOuterClass.PutObjectRequest.newBuilder()
+                    .setObjectBytes(objectBytes.toByteString())
+                    .apply {
+                        if (objectType != null) {
+                            type = objectType
+                        }
+                    }
+                    .build()
+            ).get()
+    }
+
+    /**
+     * Write an object to object store via the gateway. The object will be encrypted by the server's key and the address corresponding
+     * to the provided KeyPair's public key will be able to retrieve the object.
+     *
+     * @param objectBytes the raw data to store
+     * @param objectType (optional) the type of data that this represents. This is for reference at the time of retrieval if needed
+     * @param keyPair the KeyPair of the key to sign the request with
+     * @param timeout an optional timeout for the request/used in the request to expire signature
+     */
+    fun putObject(objectBytes: ByteArray, objectType: String? = null, keyPair: KeyPair, timeout: Duration = Duration.ofSeconds(10)): GatewayOuterClass.PutObjectResponse {
+        val jwt = createJwt(keyPair, OffsetDateTime.now().plus(timeout))
+
+        return putObject(objectBytes, objectType, jwt, timeout)
+    }
+
+    /**
+     * Write an object to object store via the gateway. The object will be encrypted by the server's key and the address corresponding
+     * to the provided KeyRef's public key will be able to retrieve the object.
+     *
+     * @param objectBytes the raw data to store
+     * @param objectType (optional) the type of data that this represents. This is for reference at the time of retrieval if needed
+     * @param keyRef the KeyRef of the key to sign the request with
+     * @param timeout an optional timeout for the request/used in the request to expire signature
+     */
+    fun putObject(objectBytes: ByteArray, objectType: String? = null, keyRef: KeyRef, timeout: Duration = Duration.ofSeconds(10)): GatewayOuterClass.PutObjectResponse {
+        val jwt = createJwt(keyRef, OffsetDateTime.now().plus(timeout))
+
+        return putObject(objectBytes, objectType, jwt, timeout)
+    }
+
+    /**
+     * Retrieve an object from object store via the gateway. The object will only be returned if the address contained within the authenticated jwt
+     * has been granted access via the gateway.
+     *
+     * @param hash the hash of the object to retrieve
+     * @param jwt a provenance JWT (can be created using this client's `createJwt` methods)
+     * @param timeout an optional timeout for the request
+     */
+    fun getObject(hash: String, jwt: String, timeout: Duration = Duration.ofSeconds(10)): GatewayOuterClass.FetchObjectByHashResponse {
+        return gatewayStub.withDeadline(Deadline.after(timeout.seconds, TimeUnit.SECONDS))
+            .withInterceptors(MetadataUtils.newAttachHeadersInterceptor(jwt.toJwtMeta()))
+            .fetchObjectByHash(
+                GatewayOuterClass.FetchObjectByHashRequest.newBuilder()
+                    .setHash(hash)
+                    .build()
+            ).get()
+    }
+
+    /**
+     * Retrieve an object from object store via the gateway. The object will only be returned if the address corresponding to the provided
+     * keyPair's public key has been granted access via the gateway.
+     *
+     * @param hash the hash of the object to retrieve
+     * @param keyPair the KeyPair of the key to sign the request with
+     * @param timeout an optional timeout for the request/used in the request to expire signature
+     */
+    fun getObject(hash: String, keyPair: KeyPair, timeout: Duration = Duration.ofSeconds(10)): GatewayOuterClass.FetchObjectByHashResponse {
+        val jwt = createJwt(keyPair, OffsetDateTime.now().plus(timeout))
+
+        return getObject(hash, jwt, timeout)
+    }
+
+    /**
+     * Retrieve an object from object store via the gateway. The object will only be returned if the address corresponding to the provided
+     * keyRef's public key has been granted access via the gateway.
+     *
+     * @param hash the hash of the object to retrieve
+     * @param keyRef the KeyRef of the key to sign the request with
+     * @param timeout an optional timeout for the request/used in the request to expire signature
+     */
+    fun getObject(hash: String, keyRef: KeyRef, timeout: Duration = Duration.ofSeconds(10)): GatewayOuterClass.FetchObjectByHashResponse {
+        val jwt = createJwt(keyRef, OffsetDateTime.now().plus(timeout))
+
+        return getObject(hash, jwt, timeout)
     }
 
     override fun close() {

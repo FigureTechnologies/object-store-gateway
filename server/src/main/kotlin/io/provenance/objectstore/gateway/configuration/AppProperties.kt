@@ -26,6 +26,7 @@ data class EventStreamProperties(
 data class ObjectStoreProperties(
     val uri: URI,
     val privateKeys: List<String>,
+    val masterKey: String,
     val decryptionWorkerThreads: Short = 10,
     val concurrencySize: Short = 10,
     val cacheRecordSizeBytes: Long = 10_000_000

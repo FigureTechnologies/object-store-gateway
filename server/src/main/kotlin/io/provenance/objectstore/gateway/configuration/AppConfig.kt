@@ -29,6 +29,9 @@ class AppConfig {
     }.toMap()
 
     @Bean
+    fun masterKey(objectStoreProperties: ObjectStoreProperties): KeyRef = objectStoreProperties.masterKey.toJavaPrivateKey().toKeyPair().let(::DirectKeyRef)
+
+    @Bean
     fun pbClient(provenanceProperties: ProvenanceProperties): PbClient = PbClient(
         chainId = provenanceProperties.chainId,
         channelUri = provenanceProperties.channelUri,
