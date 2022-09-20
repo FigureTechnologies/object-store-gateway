@@ -17,7 +17,6 @@ import io.provenance.metadata.v1.Party
 import io.provenance.metadata.v1.PartyType
 import io.provenance.metadata.v1.ScopeResponse
 import io.provenance.metadata.v1.SessionWrapper
-import io.provenance.objectstore.gateway.configuration.DataMigration
 import io.provenance.objectstore.gateway.configuration.ProvenanceProperties
 import io.provenance.objectstore.gateway.eventstream.AcContractKey
 import io.provenance.objectstore.gateway.eventstream.GatewayExpectedAttribute
@@ -30,7 +29,6 @@ import org.jetbrains.exposed.sql.deleteAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import java.time.OffsetDateTime
 import java.util.Base64
@@ -38,9 +36,6 @@ import kotlin.test.assertEquals
 
 @SpringBootTest
 class StreamEventHandlerServiceTest {
-    @Autowired
-    lateinit var dataMigration: DataMigration
-
     val onboardingOwnerAddress = "onboardingOwner"
     val otherOwnerAddress = "otherOwner"
     val sessionPartyAddress = "sessionParty"

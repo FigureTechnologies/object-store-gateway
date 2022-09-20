@@ -1,22 +1,17 @@
 package io.provenance.objectstore.gateway.repository
 
-import io.provenance.objectstore.gateway.configuration.DataMigration
 import io.provenance.objectstore.gateway.model.ScopePermission
 import io.provenance.objectstore.gateway.model.ScopePermissionsTable
 import org.jetbrains.exposed.sql.deleteAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import kotlin.test.assertEquals
 
 @SpringBootTest
 class ScopePermissionsRepositoryTest {
     lateinit var repository: ScopePermissionsRepository
-
-    @Autowired
-    lateinit var dataMigration: DataMigration
 
     val scopeAddress = "myCoolScope"
     val granteeAddress = "granteeIsMe"
