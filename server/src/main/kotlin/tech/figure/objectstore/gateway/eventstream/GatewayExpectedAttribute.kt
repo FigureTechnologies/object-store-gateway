@@ -8,6 +8,12 @@ package tech.figure.objectstore.gateway.eventstream
  */
 enum class GatewayExpectedAttribute(val key: String) {
     /**
+     * An optional free-form text parameter that specifies an additional unique ID for a scope permission record. If
+     * specified, access revocations can directly target this record for removal.
+     */
+    ACCESS_GRANT_ID("object_store_gateway_access_grant_id"),
+
+    /**
      * The type of event to execute upon receipt of this attribute.
      */
     EVENT_TYPE("object_store_gateway_event_type"),

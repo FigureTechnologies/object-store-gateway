@@ -27,6 +27,11 @@ class GatewayEvent(sourceEvent: TxEvent) : GatewayEventAdapter(sourceEvent) {
      */
     val targetAccount: String = getEventStringValue(GatewayExpectedAttribute.TARGET_ACCOUNT.key)
 
+    /**
+     * See GatewayExpectedAttribute.ACCESS_GRANT_ID for details.
+     */
+    val accessGrantId: String? = getEventStringValueOrNull(GatewayExpectedAttribute.ACCESS_GRANT_ID.key)
+
     companion object {
         private val logger = KotlinLogging.logger {}
 
