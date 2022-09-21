@@ -34,6 +34,22 @@ class ScopePermissionsRepositoryTest {
                 assertEquals(records.first().scopeAddress, scopeAddress, "The scope permission record should have the proper scope address")
                 assertEquals(records.first().granterAddress, granterAddress, "The scope permission record should have the proper granter")
                 assertEquals(records.first().granteeAddress, granteeAddress, "The scope permission record should have the proper grantee")
+                assertEquals(records.first().grantId, null, "The scope permission record should have a null grant id by default")
+            }
+        }
+    }
+
+    @Test
+    fun `addAccessPermission should not insert duplicate records when a null grantId is supplied`() {
+        repository.addAccessPermission(scopeAddress, granteeAddress, granterAddress)
+        repository.addAccessPermission(scopeAddress, granteeAddress, granterAddress)
+        transaction {
+            ScopePermission.findAllByScopeIdAndGranteeAddress(scopeAddress, granteeAddress).also { records ->
+                assertEquals(
+                    expected = 1,
+                    actual = records.count(),
+                    message = "Duplicate records with null grant ids should be ignored and only one copy of the record should be inserted",
+                )
             }
         }
     }
