@@ -23,7 +23,7 @@ class ObjectStoreGatewayServer(
         request: GatewayOuterClass.FetchObjectRequest,
         responseObserver: StreamObserver<GatewayOuterClass.FetchObjectResponse>
     ) {
-        scopeFetchService.fetchScope(request.scopeAddress, publicKey(), request.granterAddress.takeIf { it.isNotBlank() }).let {
+        scopeFetchService.fetchScopeForGrantee(request.scopeAddress, publicKey(), request.granterAddress.takeIf { it.isNotBlank() }).let {
             responseObserver.onNext(
                 GatewayOuterClass.FetchObjectResponse.newBuilder()
                     .setScopeId(request.scopeAddress)
@@ -32,6 +32,12 @@ class ObjectStoreGatewayServer(
             )
         }
         responseObserver.onCompleted()
+    }
+
+    override fun grantScopePermission(
+        request: GatewayOuterClass.GrantScopePermissionRequest,
+        responseObserver: StreamObserver<GatewayOuterClass.GrantScopePermissionResponse>,
+    ) {
     }
 
     override fun putObject(

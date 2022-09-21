@@ -55,7 +55,7 @@ class ObjectStoreGatewayServerTest {
                 .build()
         )
 
-        every { scopeFetchService.fetchScope(request.scopeAddress, keyPair.public, request.granterAddress.takeIf { it.isNotBlank() }) } returns dummyRecords
+        every { scopeFetchService.fetchScopeForGrantee(request.scopeAddress, keyPair.public, request.granterAddress.takeIf { it.isNotBlank() }) } returns dummyRecords
 
         every { responseObserver.onNext(any()) } returns mockk()
         every { responseObserver.onCompleted() } returns mockk()

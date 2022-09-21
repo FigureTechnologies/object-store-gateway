@@ -37,19 +37,21 @@ import java.util.Base64
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.fail
 
 @SpringBootTest
 class StreamEventHandlerServiceTest {
-    val onboardingOwnerAddress = "onboardingOwner"
-    val otherOwnerAddress = "otherOwner"
+    val onboardingOwner: Account = genRandomAccount() // Access the standard testnet account address
+    val priorityOwnerAddress = "prioritizedOwner" // This is the first value located in ScopePermissionsService.findRegisteredScopeOwnerAddress(), and will be the granter in most circumstances
     val sessionPartyAddress = "sessionParty"
     val dataAccessAddress = "dataAccess"
     val grantee: Account = genRandomAccount()
     val scopeAddress = "scopeAddress"
-    val valueOwner: Account = genRandomAccount() // Access the standard testnet account address
 
     lateinit var pbClient: PbClient
     lateinit var provenanceProperties: ProvenanceProperties
+    lateinit var scopeFetchService: ScopeFetchService
+    lateinit var scopePermissionsService: ScopePermissionsService
     lateinit var scopePermissionsRepository: ScopePermissionsRepository
     lateinit var service: StreamEventHandlerService
 
@@ -59,21 +61,22 @@ class StreamEventHandlerServiceTest {
     }
 
     fun setUp(
-        vararg watchedAddresses: String = listOf(onboardingOwnerAddress, otherOwnerAddress, sessionPartyAddress, dataAccessAddress).toTypedArray(),
-        txSigner: Account = valueOwner,
+        vararg watchedAddresses: String = listOf(priorityOwnerAddress, sessionPartyAddress, dataAccessAddress).toTypedArray(),
+        txSigner: Account = onboardingOwner,
     ) {
         scopePermissionsRepository = ScopePermissionsRepository()
         pbClient = mockk()
+        scopeFetchService = mockk()
         provenanceProperties = mockk()
 
         every { provenanceProperties.mainNet } returns false
-        every { pbClient.metadataClient.scope(any()) } returns ScopeResponse.newBuilder()
+        every { scopeFetchService.fetchScope(any(), any(), any()) } returns ScopeResponse.newBuilder()
             .apply {
                 scopeBuilder.scopeBuilder
-                    .addOwners(Party.newBuilder().setRole(PartyType.PARTY_TYPE_OWNER).setAddress(onboardingOwnerAddress))
-                    .addOwners(Party.newBuilder().setRole(PartyType.PARTY_TYPE_AFFILIATE).setAddress(otherOwnerAddress))
+                    .addOwners(Party.newBuilder().setRole(PartyType.PARTY_TYPE_OWNER).setAddress(onboardingOwner.bech32Address))
+                    .addOwners(Party.newBuilder().setRole(PartyType.PARTY_TYPE_AFFILIATE).setAddress(priorityOwnerAddress))
                     .addDataAccess(dataAccessAddress)
-                scopeBuilder.scopeBuilder.valueOwnerAddress = valueOwner.bech32Address
+                scopeBuilder.scopeBuilder.valueOwnerAddress = onboardingOwner.bech32Address
             }.addSessions(
                 SessionWrapper.newBuilder()
                     .apply {
@@ -93,7 +96,16 @@ class StreamEventHandlerServiceTest {
                 )
             }.build()
 
-        service = StreamEventHandlerService(watchedAddresses.toSet(), scopePermissionsRepository, pbClient, provenanceProperties)
+        scopePermissionsService = ScopePermissionsService(
+            accountAddresses = watchedAddresses.toSet(),
+            scopeFetchService = scopeFetchService,
+            scopePermissionsRepository = scopePermissionsRepository,
+        )
+        service = StreamEventHandlerService(
+            scopePermissionsService = scopePermissionsService,
+            pbClient = pbClient,
+            provenanceProperties = provenanceProperties,
+        )
     }
 
     @Test
@@ -102,7 +114,7 @@ class StreamEventHandlerServiceTest {
 
         submitAssetClassificationEvent()
 
-        assertEquals(listOf(onboardingOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
+        assertEquals(listOf(priorityOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
     }
 
     @Test
@@ -111,25 +123,25 @@ class StreamEventHandlerServiceTest {
 
         submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
 
-        assertEquals(listOf(onboardingOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
+        assertEquals(listOf(priorityOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
     }
 
     @Test
     fun `StreamEventHandlerService chooses other scopeOwner as granter when that address is watched and onboarding owner is not from asset classification event`() {
-        setUp(otherOwnerAddress, sessionPartyAddress, dataAccessAddress)
+        setUp(priorityOwnerAddress, sessionPartyAddress, dataAccessAddress)
 
         submitAssetClassificationEvent()
 
-        assertEquals(listOf(otherOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
+        assertEquals(listOf(priorityOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
     }
 
     @Test
     fun `StreamEventHandlerService chooses other scopeOwner as granter when that address is watched and onboarding owner is not from gateway grant event`() {
-        setUp(otherOwnerAddress, sessionPartyAddress, dataAccessAddress)
+        setUp(priorityOwnerAddress, sessionPartyAddress, dataAccessAddress)
 
         submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
 
-        assertEquals(listOf(otherOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
+        assertEquals(listOf(priorityOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
     }
 
     @Test
@@ -200,7 +212,7 @@ class StreamEventHandlerServiceTest {
         submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
 
         assertEquals(
-            expected = listOf(onboardingOwnerAddress),
+            expected = listOf(priorityOwnerAddress),
             actual = scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address),
             message = "Access should be given to grantee from the scope owner",
         )
@@ -221,7 +233,7 @@ class StreamEventHandlerServiceTest {
         submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
 
         assertEquals(
-            expected = listOf(onboardingOwnerAddress),
+            expected = listOf(priorityOwnerAddress),
             actual = scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address),
             message = "Access should be given to grantee from the scope owner",
         )
@@ -244,7 +256,7 @@ class StreamEventHandlerServiceTest {
         submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
 
         assertEquals(
-            expected = listOf(onboardingOwnerAddress),
+            expected = listOf(priorityOwnerAddress),
             actual = scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address),
             message = "Access should be given to grantee from the scope owner",
         )
@@ -254,7 +266,7 @@ class StreamEventHandlerServiceTest {
         submitGatewayEvent(GatewayExpectedEventType.ACCESS_REVOKE)
 
         assertEquals(
-            expected = listOf(onboardingOwnerAddress),
+            expected = listOf(priorityOwnerAddress),
             actual = scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address),
             message = "Access should remain for the grantee because the revoke was ignored for not having a valid signer",
         )
@@ -272,7 +284,7 @@ class StreamEventHandlerServiceTest {
         submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
 
         assertEquals(
-            expected = listOf(onboardingOwnerAddress),
+            expected = listOf(priorityOwnerAddress),
             actual = scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address).distinct(),
             message = "All granters should be located for the given combinations, but because they all use the same granter, only one result should be returned",
         )
@@ -359,13 +371,29 @@ class StreamEventHandlerServiceTest {
         )
     }
 
+    @Test
+    fun `StreamEventHandlerService gracefully handles unrelated access revoke`() {
+        setUp()
+
+        listOf(
+            null to "Unexpected revocation with no target grant id should be handled without error",
+            "grantId" to "Unexpected revocation with explicit grant id should be handled without error",
+        ).forEach { (grantId, errorMessage) ->
+            try {
+                submitGatewayEvent(GatewayExpectedEventType.ACCESS_REVOKE, grantId = grantId)
+            } catch (e: Exception) {
+                fail(message = errorMessage, cause = e)
+            }
+        }
+    }
+
     private fun submitAssetClassificationEvent() {
         submitEvent(
             attributes = listOf(
                 AcContractKey.EVENT_TYPE.eventName to "onboard_asset",
                 AcContractKey.ASSET_TYPE.eventName to "payable",
                 AcContractKey.SCOPE_ADDRESS.eventName to scopeAddress,
-                AcContractKey.SCOPE_OWNER_ADDRESS.eventName to onboardingOwnerAddress,
+                AcContractKey.SCOPE_OWNER_ADDRESS.eventName to onboardingOwner.bech32Address,
                 AcContractKey.VERIFIER_ADDRESS.eventName to grantee.bech32Address,
             )
         )
@@ -408,7 +436,7 @@ class StreamEventHandlerServiceTest {
 
     private fun assertScopePermissionExists(
         targetScopeAddress: String = scopeAddress,
-        granterAddress: String = onboardingOwnerAddress,
+        granterAddress: String = priorityOwnerAddress,
         granteeAddress: String = grantee.bech32Address,
         grantId: String? = null,
         messagePrefix: String? = null,
@@ -427,7 +455,7 @@ class StreamEventHandlerServiceTest {
 
     private fun assertScopePermissionDoesNotExist(
         targetScopeAddress: String = scopeAddress,
-        granterAddress: String = onboardingOwnerAddress,
+        granterAddress: String = priorityOwnerAddress,
         granteeAddress: String = grantee.bech32Address,
         grantId: String? = null,
         messagePrefix: String? = null,

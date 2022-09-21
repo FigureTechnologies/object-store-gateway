@@ -7,6 +7,9 @@ service Gateway {
   rpc PutObject (PutObjectRequest) returns (PutObjectResponse) {};
   rpc FetchObjectByHash (FetchObjectByHashRequest) returns (FetchObjectByHashResponse) {};
 
+  rpc GrantScopePermission (GrantScopePermissionRequest) returns (GrantScopePermissionResponse) {};
+  rpc RevokeScopePermission (RevokeScopePermissionRequest) returns (RevokeScopePermissionResponse) {};
+
   // todo: admin only service method to add an address to the acl for a granter
   // todo: admin only service method to remove an address from the acl for a granter
 }
@@ -36,6 +39,28 @@ message FetchObjectByHashRequest {
 
 message FetchObjectByHashResponse {
   ObjectWithMeta object = 1;
+}
+
+message GrantScopePermissionRequest {
+  string scope_address = 1; // A bech32 scope address. The account referenced by grantee_address will receive read permissions through this service to the scope's underlying records
+  string grantee_address = 2; // A bech32 account address for which to grant read access to the scope's records
+  string grant_id = 3; // An optional parameter that specifies a unique identifier by which to label the grant entry that will be created
+}
+
+message GrantScopePermissionResponse {
+  GrantScopePermissionRequest request = 1; // The request that evoked this response
+  string granter_address = 2; // The address that has read access to the requested scope's underlying records
+}
+
+message RevokeScopePermissionRequest {
+  string scope_address = 1; // A bech32 scope address.  All grants for this scope to the target grantee_address will be removed
+  string grantee_address = 2; // A bech32 account address.  All grants that this account has received for the scope will be removed
+  string grant_id = 3; // An optional parameter that specifies a unique identifier by which to target existing grant entries.  If this value is omitted, all grants (including those labeled with grant ids) will be removed for this scope/account combo
+}
+
+message RevokeScopePermissionResponse {
+  RevokeScopePermissionRequest request = 1; // The request that evoked this response
+  int32 revoked_grants_count = 2; // The amount of grants that the request successfully revoked
 }
 
 message ObjectWithMeta {
