@@ -7,39 +7,54 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verifyAll
 import io.provenance.scope.encryption.ecies.ProvenanceKeyGenerator
+import io.provenance.scope.encryption.model.KeyRef
 import io.provenance.scope.encryption.util.getAddress
 import io.provenance.scope.util.sha256String
 import io.provenance.scope.util.toByteString
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import tech.figure.objectstore.gateway.GatewayOuterClass
+import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
 import tech.figure.objectstore.gateway.helpers.getValidFetchObjectByHashRequest
 import tech.figure.objectstore.gateway.helpers.getValidPutObjectRequest
 import tech.figure.objectstore.gateway.helpers.getValidRequest
 import tech.figure.objectstore.gateway.helpers.objectFromParts
 import tech.figure.objectstore.gateway.service.ObjectService
 import tech.figure.objectstore.gateway.service.ScopeFetchService
+import tech.figure.objectstore.gateway.service.ScopePermissionsService
 import java.security.KeyPair
 import kotlin.random.Random
 
 class ObjectStoreGatewayServerTest {
+    lateinit var masterKey: KeyRef
     lateinit var scopeFetchService: ScopeFetchService
+    lateinit var scopePermissionsService: ScopePermissionsService
     lateinit var objectService: ObjectService
+    lateinit var provenanceProperties: ProvenanceProperties
     val keyPair: KeyPair = ProvenanceKeyGenerator.generateKeyPair()
 
     lateinit var server: ObjectStoreGatewayServer
 
     @BeforeEach
     fun setUp() {
+        masterKey = mockk()
         scopeFetchService = mockk()
+        scopePermissionsService = mockk()
         objectService = mockk()
+        provenanceProperties = mockk()
 
         Context.current()
             .withValue(Constants.REQUESTOR_PUBLIC_KEY_CTX, keyPair.public)
             .withValue(Constants.REQUESTOR_ADDRESS_CTX, keyPair.public.getAddress(false))
             .attach()
 
-        server = ObjectStoreGatewayServer(scopeFetchService, objectService)
+        server = ObjectStoreGatewayServer(
+            masterKey = masterKey,
+            scopeFetchService = scopeFetchService,
+            scopePermissionsService = scopePermissionsService,
+            objectService = objectService,
+            provenanceProperties = provenanceProperties,
+        )
     }
 
     @Test

@@ -6,12 +6,8 @@ service Gateway {
   rpc FetchObject (FetchObjectRequest) returns (FetchObjectResponse) {};
   rpc PutObject (PutObjectRequest) returns (PutObjectResponse) {};
   rpc FetchObjectByHash (FetchObjectByHashRequest) returns (FetchObjectByHashResponse) {};
-
   rpc GrantScopePermission (GrantScopePermissionRequest) returns (GrantScopePermissionResponse) {};
   rpc RevokeScopePermission (RevokeScopePermissionRequest) returns (RevokeScopePermissionResponse) {};
-
-  // todo: admin only service method to add an address to the acl for a granter
-  // todo: admin only service method to remove an address from the acl for a granter
 }
 
 message FetchObjectRequest {
@@ -50,6 +46,7 @@ message GrantScopePermissionRequest {
 message GrantScopePermissionResponse {
   GrantScopePermissionRequest request = 1; // The request that evoked this response
   string granter_address = 2; // The address that has read access to the requested scope's underlying records
+  bool grant_accepted = 3; // If true, the grant was successfully added from the request
 }
 
 message RevokeScopePermissionRequest {
@@ -61,6 +58,7 @@ message RevokeScopePermissionRequest {
 message RevokeScopePermissionResponse {
   RevokeScopePermissionRequest request = 1; // The request that evoked this response
   int32 revoked_grants_count = 2; // The amount of grants that the request successfully revoked
+  bool revoke_accepted = 3; // If true, the revoke was successfully processed.  This indicates that the sender had the rights to make the request, even if zero grants were revoked based on the input
 }
 
 message ObjectWithMeta {

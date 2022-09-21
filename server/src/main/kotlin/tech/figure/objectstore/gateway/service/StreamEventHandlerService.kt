@@ -33,7 +33,7 @@ class StreamEventHandlerService(
     fun handleEvent(event: TxEvent) {
         // Try first to intercept incoming events as Gateway events, but fallback to asset classification if the event
         // does not fit the expected gateway event structure
-        GatewayEvent.fromEventOrNull(event)?.also { gatewayEvent ->
+        GatewayEvent.fromEventOrNull(event)?.let { gatewayEvent ->
             when (gatewayEvent.eventType) {
                 GatewayExpectedEventType.ACCESS_GRANT -> scopePermissionsService.processAccessGrant(
                     scopeAddress = gatewayEvent.scopeAddress,
@@ -41,7 +41,13 @@ class StreamEventHandlerService(
                     grantSourceAddresses = getSignerAddressesForTx(gatewayEvent.txHash),
                     grantId = gatewayEvent.accessGrantId,
                     sourceDetails = "source: $gatewayEvent",
-                )
+                ).also { grantResponse ->
+                    when (grantResponse) {
+                        is GrantResponse.Accepted -> logger.info("$gatewayEvent succeeded in creating grant with granter [${grantResponse.granterAddress}]")
+                        is GrantResponse.Rejected -> logger.warn("$gatewayEvent rejected: ${grantResponse.message}")
+                        is GrantResponse.Error -> logger.error("$gatewayEvent failed with error", grantResponse.cause)
+                    }
+                }
                 GatewayExpectedEventType.ACCESS_REVOKE -> scopePermissionsService.processAccessRevoke(
                     scopeAddress = gatewayEvent.scopeAddress,
                     granteeAddress = gatewayEvent.targetAccount,
@@ -51,7 +57,13 @@ class StreamEventHandlerService(
                     additionalAuthorizedAddresses = listOf(gatewayEvent.targetAccount),
                     grantId = gatewayEvent.accessGrantId,
                     sourceDetails = "source: $gatewayEvent",
-                )
+                ).also { revokeResponse ->
+                    when (revokeResponse) {
+                        is RevokeResponse.Accepted -> logger.info("$gatewayEvent succeeded in revoking ${revokeResponse.revokedGrantsCount} grant(s)")
+                        is RevokeResponse.Rejected -> logger.warn("$gatewayEvent rejected: ${revokeResponse.message}")
+                        is RevokeResponse.Error -> logger.error("$gatewayEvent failed with error", revokeResponse.cause)
+                    }
+                }
             }
         } ?: handleAssetClassificationEvent(AssetClassificationEvent(event))
     }
