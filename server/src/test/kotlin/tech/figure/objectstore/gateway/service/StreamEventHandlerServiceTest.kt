@@ -322,24 +322,35 @@ class StreamEventHandlerServiceTest {
 
         submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT, grantId = firstGrantId)
         submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT, grantId = secondGrantId)
+        submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
 
         assertScopePermissionExists(grantId = firstGrantId)
         assertScopePermissionExists(grantId = secondGrantId)
+        assertScopePermissionExists(grantId = null)
 
         submitGatewayEvent(GatewayExpectedEventType.ACCESS_REVOKE, grantId = "other grant id")
 
         assertScopePermissionExists(grantId = firstGrantId, messagePrefix = "First grant should still exist after targeting a nonexistent grant id")
         assertScopePermissionExists(grantId = secondGrantId, messagePrefix = "Second grant should still exist after targeting a nonexistent grant id")
+        assertScopePermissionExists(grantId = null, messagePrefix = "Null id grant should still exist after targeting a nonexistent grant id")
 
         submitGatewayEvent(GatewayExpectedEventType.ACCESS_REVOKE, grantId = firstGrantId)
 
         assertScopePermissionDoesNotExist(grantId = firstGrantId, messagePrefix = "First grant should be deleted after an access revoke requested it")
         assertScopePermissionExists(grantId = secondGrantId, messagePrefix = "Second grant should still exist after only deleting the first grant id's record")
+        assertScopePermissionExists(grantId = null, messagePrefix = "Null id grant should still exist after only deleting the first grant id's record")
 
         submitGatewayEvent(GatewayExpectedEventType.ACCESS_REVOKE, grantId = secondGrantId)
 
         assertScopePermissionDoesNotExist(grantId = firstGrantId, messagePrefix = "First grant should remain deleted after deleting the second grant")
         assertScopePermissionDoesNotExist(grantId = secondGrantId, messagePrefix = "Second grant should be deleted after an access revoke requested it")
+        assertScopePermissionExists(grantId = null, messagePrefix = "Null id grant should still exist after only deleting the second grant id's record")
+
+        submitGatewayEvent(GatewayExpectedEventType.ACCESS_REVOKE)
+
+        assertScopePermissionDoesNotExist(grantId = firstGrantId, messagePrefix = "First grant should remain deleted after removing grants with a null grant id")
+        assertScopePermissionDoesNotExist(grantId = secondGrantId, messagePrefix = "Second grant should remain deleted after removing grants with a null grant id")
+        assertScopePermissionDoesNotExist(grantId = null, messagePrefix = "Null id grant should be deleted after an access revoke requested all grants to be deleted")
 
         assertEquals(
             expected = emptyList(),
