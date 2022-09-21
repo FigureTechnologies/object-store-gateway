@@ -10,7 +10,6 @@ import tech.figure.objectstore.gateway.publicKey
 import tech.figure.objectstore.gateway.server.interceptor.JwtServerInterceptor
 import tech.figure.objectstore.gateway.service.ObjectService
 import tech.figure.objectstore.gateway.service.ScopeFetchService
-import tech.figure.objectstore.gateway.util.toByteString
 
 @GRpcService(interceptors = [JwtServerInterceptor::class])
 class ObjectStoreGatewayServer(
@@ -39,13 +38,13 @@ class ObjectStoreGatewayServer(
         request: GatewayOuterClass.PutObjectRequest,
         responseObserver: StreamObserver<GatewayOuterClass.PutObjectResponse>
     ) {
-        objectService.putObject(request.objectBytes.toByteArray(), request.type.takeIf { it.isNotBlank() }, publicKey()).let {
-        responseObserver.onNext(
-            GatewayOuterClass.PutObjectResponse.newBuilder()
-                .setHash(it)
-                .build()
-        )
-    }
+        objectService.putObject(request.`object`, publicKey()).let {
+            responseObserver.onNext(
+                GatewayOuterClass.PutObjectResponse.newBuilder()
+                    .setHash(it)
+                    .build()
+            )
+        }
         responseObserver.onCompleted()
     }
 
@@ -53,16 +52,10 @@ class ObjectStoreGatewayServer(
         request: GatewayOuterClass.FetchObjectByHashRequest,
         responseObserver: StreamObserver<GatewayOuterClass.FetchObjectByHashResponse>
     ) {
-        objectService.getObject(request.hash, address()).let { (objectBytes, type) ->
+        objectService.getObject(request.hash, address()).let { obj ->
             responseObserver.onNext(
                 GatewayOuterClass.FetchObjectByHashResponse.newBuilder()
-                    .apply {
-                        objectBuilder.setHash(request.hash)
-                            .setObjectBytes(objectBytes.toByteString())
-                        if (type != null) {
-                            objectBuilder.type = type
-                        }
-                    }
+                    .setObject(obj)
                     .build()
             )
             responseObserver.onCompleted()

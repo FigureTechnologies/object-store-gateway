@@ -8,6 +8,7 @@ import io.provenance.scope.objectstore.util.toHex
 import io.provenance.scope.util.NotFoundException
 import io.provenance.scope.util.base64String
 import org.springframework.stereotype.Component
+import tech.figure.objectstore.gateway.GatewayOuterClass
 import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
 import tech.figure.objectstore.gateway.exception.AccessDeniedException
 import tech.figure.objectstore.gateway.repository.ObjectPermissionsRepository
@@ -21,28 +22,22 @@ class ObjectService(
     private val objectPermissionsRepository: ObjectPermissionsRepository,
     private val provenanceProperties: ProvenanceProperties,
 ) {
-    companion object {
-        const val OBJECT_META_TYPE_KEY = "object_type"
-    }
-
-    fun putObject(objectBytes: ByteArray, type: String?, requesterPublicKey: PublicKey): String {
-        val metadata = if (type != null) {
-            mapOf(OBJECT_META_TYPE_KEY to type)
-        } else mapOf()
+    fun putObject(obj: GatewayOuterClass.ObjectWithMeta, requesterPublicKey: PublicKey): String {
+        val objectBytes = obj.toByteArray()
+        val objectSize = objectBytes.size.toLong()
 
         return objectStoreClient.osClient.put(
             ByteArrayInputStream(objectBytes),
             masterKey.publicKey,
             masterKey.signer(),
-            objectBytes.size.toLong(),
+            objectSize,
             setOf(requesterPublicKey),
-            metadata
         ).get().hash.toByteArray().base64String().also { hash ->
-            objectPermissionsRepository.addAccessPermission(hash, requesterPublicKey.getAddress(provenanceProperties.mainNet))
+            objectPermissionsRepository.addAccessPermission(hash, requesterPublicKey.getAddress(provenanceProperties.mainNet), objectSize)
         }
     }
 
-    fun getObject(hash: String, requesterAddress: String): Pair<ByteArray, String?> {
+    fun getObject(hash: String, requesterAddress: String): GatewayOuterClass.ObjectWithMeta {
         if (!objectPermissionsRepository.hasAccessPermission(hash, requesterAddress)) {
             throw AccessDeniedException("Object access not granted to $requesterAddress [hash: $hash]")
         }
@@ -60,7 +55,7 @@ class ObjectService(
                         )
                     }
                 }
-            } to dimeInputStream.metadata[OBJECT_META_TYPE_KEY]
-        }
+            }
+        }.let(GatewayOuterClass.ObjectWithMeta::parseFrom)
     }
 }

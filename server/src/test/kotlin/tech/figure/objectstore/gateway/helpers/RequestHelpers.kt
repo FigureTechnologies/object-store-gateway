@@ -12,14 +12,20 @@ fun getValidRequest(granterAddress: String? = null) = GatewayOuterClass.FetchObj
     .build()
 
 fun getValidPutObjectRequest(type: String? = null, size: Int = 100) = GatewayOuterClass.PutObjectRequest.newBuilder()
-    .setObjectBytes(Random.nextBytes(size).toByteString())
-    .apply {
-        if (type != null) {
-            setType(type)
-        }
-    }
+    .setObject(randomObject(type))
     .build()
 
 fun getValidFetchObjectByHashRequest(hash: String) = GatewayOuterClass.FetchObjectByHashRequest.newBuilder()
     .setHash(hash)
+    .build()
+
+fun randomObject(objectType: String? = null, size: Int = 100) = objectFromParts(Random.nextBytes(size), objectType)
+
+fun objectFromParts(objectBytes: ByteArray, objectType: String? = null) = GatewayOuterClass.ObjectWithMeta.newBuilder()
+    .setObjectBytes(objectBytes.toByteString())
+    .apply {
+        if (objectType != null) {
+            type = objectType
+        }
+    }
     .build()
