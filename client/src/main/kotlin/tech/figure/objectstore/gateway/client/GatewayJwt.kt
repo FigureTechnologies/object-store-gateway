@@ -72,7 +72,7 @@ sealed interface GatewayJwt {
      *
      * @param keyPair The public and private keys of the requesting entity.
      */
-    data class KeyPairJwt(private val keyPair: KeyPair) : GatewayJwt {
+    data class KeyPairJwt(val keyPair: KeyPair) : GatewayJwt {
         override fun createJwt(mainNet: Boolean, expiresAt: OffsetDateTime): String = createJwtInternal(
             publicKey = keyPair.public,
             algorithm = Algorithm.ECDSA256K(keyPair.public as ECPublicKey, keyPair.private as ECPrivateKey),
@@ -88,7 +88,7 @@ sealed interface GatewayJwt {
      *
      * @param keyRef The public and private keys of the requesting entity.
      */
-    data class KeyRefJwt(private val keyRef: KeyRef) : GatewayJwt {
+    data class KeyRefJwt(val keyRef: KeyRef) : GatewayJwt {
         override fun createJwt(mainNet: Boolean, expiresAt: OffsetDateTime): String = createJwtInternal(
             publicKey = keyRef.publicKey,
             algorithm = KeyRefSecP256K1Algorithm(keyRef),
