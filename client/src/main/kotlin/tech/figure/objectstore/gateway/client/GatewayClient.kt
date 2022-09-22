@@ -11,6 +11,10 @@ import io.provenance.scope.encryption.util.getAddress
 import io.provenance.scope.util.toByteString
 import tech.figure.objectstore.gateway.GatewayGrpc
 import tech.figure.objectstore.gateway.GatewayOuterClass
+import tech.figure.objectstore.gateway.GatewayOuterClass.GrantScopePermissionRequest
+import tech.figure.objectstore.gateway.GatewayOuterClass.GrantScopePermissionResponse
+import tech.figure.objectstore.gateway.GatewayOuterClass.RevokeScopePermissionRequest
+import tech.figure.objectstore.gateway.GatewayOuterClass.RevokeScopePermissionResponse
 import tech.figure.objectstore.gateway.shared.KeyRefSecP256K1Algorithm
 import tech.figure.objectstore.gateway.util.toJwtMeta
 import java.io.Closeable
@@ -210,6 +214,178 @@ class GatewayClient(val config: ClientConfig) : Closeable {
 
         return getObject(hash, jwt, timeout)
     }
+
+    /**
+     * Grants permission to the grantee to view the records associated with the given Provenance Blockchain Scope
+     * address.  The caller of this function has to be either the value owner of the given scope, or the administrator
+     * of the gateway application.
+     *
+     * @param scopeAddress The bech32 Provenance Blockchain Scope address for which to grant access
+     * @param granteeAddress The bech32 Provenance Blockchain Account address to which access will be granted
+     * @param jwt a provenance JWT (can be created using this client's `createJwt` methods)
+     * @param grantId A free-form grant identifier that will be appended to the record created in the scope_permissions
+     * table for targeted revokes.  If omitted, the record created will have a null grant id
+     * @param timeout an optional timeout for the request
+     */
+    fun grantScopePermission(
+        scopeAddress: String,
+        granteeAddress: String,
+        jwt: String,
+        grantId: String? = null,
+        timeout: Duration = Duration.ofSeconds(10),
+    ): GrantScopePermissionResponse = gatewayStub.withDeadline(Deadline.after(timeout.seconds, TimeUnit.SECONDS))
+        .withInterceptors(MetadataUtils.newAttachHeadersInterceptor(jwt.toJwtMeta()))
+        .grantScopePermission(
+            GrantScopePermissionRequest.newBuilder().also { request ->
+                request.scopeAddress = scopeAddress
+                request.granteeAddress = granteeAddress
+                grantId?.also { request.grantId = it }
+            }.build()
+        )
+        .get()
+
+    /**
+     * Grants permission to the grantee to view the records associated with the given Provenance Blockchain Scope
+     * address.  The caller of this function has to be either the value owner of the given scope, or the administrator
+     * of the gateway application.
+     *
+     * @param scopeAddress The bech32 Provenance Blockchain Scope address for which to grant access
+     * @param granteeAddress The bech32 Provenance Blockchain Account address to which access will be granted
+     * @param keyPair the KeyPair of the key to sign the request with
+     * @param grantId A free-form grant identifier that will be appended to the record created in the scope_permissions
+     * table for targeted revokes.  If omitted, the record created will have a null grant id
+     * @param timeout an optional timeout for the request
+     */
+    fun grantScopePermission(
+        scopeAddress: String,
+        granteeAddress: String,
+        keyPair: KeyPair,
+        grantId: String? = null,
+        timeout: Duration = Duration.ofSeconds(10),
+    ): GrantScopePermissionResponse = grantScopePermission(
+        scopeAddress = scopeAddress,
+        granteeAddress = granteeAddress,
+        jwt = createJwt(keyPair, OffsetDateTime.now().plus(timeout)),
+        grantId = grantId,
+        timeout = timeout,
+    )
+
+    /**
+     * Grants permission to the grantee to view the records associated with the given Provenance Blockchain Scope
+     * address.  The caller of this function has to be one of the following to avoid request rejection:
+     * - The associated scope's value owner
+     * - The master administrator of the gateway application
+     *
+     * @param scopeAddress The bech32 Provenance Blockchain Scope address for which to grant access
+     * @param granteeAddress The bech32 Provenance Blockchain Account address to which access will be granted
+     * @param keyRef the KeyRef of the key to sign the request with
+     * @param grantId A free-form grant identifier that will be appended to the record created in the scope_permissions
+     * table for targeted revokes.  If omitted, the record created will have a null grant id
+     * @param timeout an optional timeout for the request
+     */
+    fun grantScopePermission(
+        scopeAddress: String,
+        granteeAddress: String,
+        keyRef: KeyRef,
+        grantId: String? = null,
+        timeout: Duration = Duration.ofSeconds(10),
+    ): GrantScopePermissionResponse = grantScopePermission(
+        scopeAddress = scopeAddress,
+        granteeAddress = granteeAddress,
+        jwt = createJwt(keyRef, OffsetDateTime.now().plus(timeout)),
+        grantId = grantId,
+        timeout = timeout,
+    )
+
+    /**
+     * Revokes permission from the grantee to view the records associated with the given Provenance Blockchain Scope
+     * address.  The caller of this function has to be one of the following to avoid request rejection:
+     * - The associated scope's value owner
+     * - The master administrator of the gateway application
+     * - The grantee (accounts that have been granted permissions to a scope can revoke their own permissions if desired)
+     *
+     * @param scopeAddress The bech32 Provenance Blockchain Scope address for which to revoke access
+     * @param granteeAddress The bech32 Provenance Blockchain Account address for which access will be revoked
+     * @param jwt a provenance JWT (can be created using this client's `createJwt` methods)
+     * @param grantId A free-form grant identifier that will be used to query for existing scope_permissions records.
+     * If this value is omitted, all grants for the given scope and grantee combination will be revoked, versus targeting
+     * a singular unique record with the given id.
+     * @param timeout an optional timeout for the request
+     */
+    fun revokeScopePermission(
+        scopeAddress: String,
+        granteeAddress: String,
+        jwt: String,
+        grantId: String? = null,
+        timeout: Duration = Duration.ofSeconds(10),
+    ): RevokeScopePermissionResponse = gatewayStub.withDeadline(Deadline.after(timeout.seconds, TimeUnit.SECONDS))
+        .withInterceptors(MetadataUtils.newAttachHeadersInterceptor(jwt.toJwtMeta()))
+        .revokeScopePermission(
+            RevokeScopePermissionRequest.newBuilder().also { request ->
+                request.scopeAddress = scopeAddress
+                request.granteeAddress = granteeAddress
+                grantId?.also { request.grantId = it }
+            }.build()
+        )
+        .get()
+
+    /**
+     * Revokes permission from the grantee to view the records associated with the given Provenance Blockchain Scope
+     * address.  The caller of this function has to be one of the following to avoid request rejection:
+     * - The associated scope's value owner
+     * - The master administrator of the gateway application
+     * - The grantee (accounts that have been granted permissions to a scope can revoke their own permissions if desired)
+     *
+     * @param scopeAddress The bech32 Provenance Blockchain Scope address for which to revoke access
+     * @param granteeAddress The bech32 Provenance Blockchain Account address for which access will be revoked
+     * @param keyPair the KeyPair of the key to sign the request with
+     * @param grantId A free-form grant identifier that will be used to query for existing scope_permissions records.
+     * If this value is omitted, all grants for the given scope and grantee combination will be revoked, versus targeting
+     * a singular unique record with the given id.
+     * @param timeout an optional timeout for the request
+     */
+    fun revokeScopePermission(
+        scopeAddress: String,
+        granteeAddress: String,
+        keyPair: KeyPair,
+        grantId: String? = null,
+        timeout: Duration = Duration.ofSeconds(10),
+    ): RevokeScopePermissionResponse = revokeScopePermission(
+        scopeAddress = scopeAddress,
+        granteeAddress = granteeAddress,
+        jwt = createJwt(keyPair, OffsetDateTime.now().plus(timeout)),
+        grantId = grantId,
+        timeout = timeout,
+    )
+
+    /**
+     * Revokes permission from the grantee to view the records associated with the given Provenance Blockchain Scope
+     * address.  The caller of this function has to be one of the following to avoid request rejection:
+     * - The associated scope's value owner
+     * - The master administrator of the gateway application
+     * - The grantee (accounts that have been granted permissions to a scope can revoke their own permissions if desired)
+     *
+     * @param scopeAddress The bech32 Provenance Blockchain Scope address for which to revoke access
+     * @param granteeAddress The bech32 Provenance Blockchain Account address for which access will be revoked
+     * @param keyRef the KeyRef of the key to sign the request with
+     * @param grantId A free-form grant identifier that will be used to query for existing scope_permissions records.
+     * If this value is omitted, all grants for the given scope and grantee combination will be revoked, versus targeting
+     * a singular unique record with the given id.
+     * @param timeout an optional timeout for the request
+     */
+    fun revokeScopePermission(
+        scopeAddress: String,
+        granteeAddress: String,
+        keyRef: KeyRef,
+        grantId: String? = null,
+        timeout: Duration = Duration.ofSeconds(10),
+    ): RevokeScopePermissionResponse = revokeScopePermission(
+        scopeAddress = scopeAddress,
+        granteeAddress = granteeAddress,
+        jwt = createJwt(keyRef, OffsetDateTime.now().plus(timeout)),
+        grantId = grantId,
+        timeout = timeout,
+    )
 
     override fun close() {
         channel.shutdown()
