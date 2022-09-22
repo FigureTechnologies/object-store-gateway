@@ -10,6 +10,7 @@ import org.lognet.springboot.grpc.GRpcService
 import tech.figure.objectstore.gateway.GatewayGrpc
 import tech.figure.objectstore.gateway.GatewayOuterClass
 import tech.figure.objectstore.gateway.GatewayOuterClass.GrantScopePermissionResponse
+import tech.figure.objectstore.gateway.GatewayOuterClass.RevokeScopePermissionResponse
 import tech.figure.objectstore.gateway.address
 import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
 import tech.figure.objectstore.gateway.publicKey
@@ -20,6 +21,8 @@ import tech.figure.objectstore.gateway.service.RevokeResponse
 import tech.figure.objectstore.gateway.service.ScopeFetchService
 import tech.figure.objectstore.gateway.service.ScopePermissionsService
 
+// TODO: Determine if Spring provides an automatic exception handler hook for grpc services and use that to give some
+// TODO: flavor to these rpc routes to dynamically create UNKNOWN responses when exceptions are thrown
 @GRpcService(interceptors = [JwtServerInterceptor::class])
 class ObjectStoreGatewayServer(
     private val masterKey: KeyRef,
@@ -43,80 +46,6 @@ class ObjectStoreGatewayServer(
                     .build()
             )
         }
-        responseObserver.onCompleted()
-    }
-
-    override fun grantScopePermission(
-        request: GatewayOuterClass.GrantScopePermissionRequest,
-        responseObserver: StreamObserver<GrantScopePermissionResponse>,
-    ) {
-        val requesterAddress = publicKey().getAddress(mainNet = provenanceProperties.mainNet)
-        val grantId = request.grantId.takeIf { it.isNotBlank() }
-        val sourceDetails = "Manual grant request by $requesterAddress for scope ${request.scopeAddress}, grantee ${request.granteeAddress}${if (grantId != null) ", grantId $grantId" else ""}"
-        val grantResponse = scopePermissionsService.processAccessGrant(
-            scopeAddress = request.scopeAddress,
-            granteeAddress = request.granteeAddress,
-            grantSourceAddresses = listOf(requesterAddress),
-            // The application's admin should be able to manually grant any permission that is desired
-            additionalAuthorizedAddresses = listOf(masterKey.publicKey.getAddress(mainNet = provenanceProperties.mainNet)),
-            grantId = grantId,
-            sourceDetails = sourceDetails,
-        )
-        if (grantResponse is GrantResponse.Error) {
-            logger.error("ERROR $sourceDetails", grantResponse.cause)
-            responseObserver.onError(StatusRuntimeException(Status.UNKNOWN.withCause(grantResponse.cause)))
-            return
-        }
-        responseObserver.onNext(
-            GrantScopePermissionResponse.newBuilder().also { rpcResponse ->
-                rpcResponse.request = request
-                if (grantResponse is GrantResponse.Accepted) {
-                    rpcResponse.grantAccepted = true
-                    rpcResponse.granterAddress = grantResponse.granterAddress
-                } else if (grantResponse is GrantResponse.Rejected) {
-                    rpcResponse.grantAccepted = false
-                    logger.warn("REJECTED $sourceDetails: ${grantResponse.message}")
-                }
-            }.build()
-        )
-        responseObserver.onCompleted()
-    }
-
-    override fun revokeScopePermission(
-        request: GatewayOuterClass.RevokeScopePermissionRequest,
-        responseObserver: StreamObserver<GatewayOuterClass.RevokeScopePermissionResponse>,
-    ) {
-        val requesterAddress = publicKey().getAddress(mainNet = provenanceProperties.mainNet)
-        val grantId = request.grantId.takeIf { it.isNotBlank() }
-        val sourceDetails = "Main revoke request by $requesterAddress for scope ${request.scopeAddress}, grantee ${request.granteeAddress}${if (grantId != null) ", grantId $grantId" else ""}"
-        val revokeResponse = scopePermissionsService.processAccessRevoke(
-            scopeAddress = request.scopeAddress,
-            granteeAddress = request.granteeAddress,
-            revokeSourceAddresses = listOf(requesterAddress),
-            additionalAuthorizedAddresses = listOf(
-                // The grantee should be able to remove their own grants upon request
-                request.granteeAddress,
-                masterKey.publicKey.getAddress(mainNet = provenanceProperties.mainNet),
-            ),
-            grantId = grantId,
-            sourceDetails = sourceDetails,
-        )
-        if (revokeResponse is RevokeResponse.Error) {
-            logger.error("ERROR $sourceDetails", revokeResponse.cause)
-            responseObserver.onError(StatusRuntimeException(Status.UNKNOWN.withCause(revokeResponse.cause)))
-        }
-        responseObserver.onNext(
-            GatewayOuterClass.RevokeScopePermissionResponse.newBuilder().also { rpcResponse ->
-                rpcResponse.request = request
-                if (revokeResponse is RevokeResponse.Accepted) {
-                    rpcResponse.revokeAccepted = true
-                    rpcResponse.revokedGrantsCount = revokeResponse.revokedGrantsCount
-                } else if (revokeResponse is RevokeResponse.Rejected) {
-                    rpcResponse.revokeAccepted = false
-                    logger.warn("REJECTED $sourceDetails: ${revokeResponse.message}")
-                }
-            }.build()
-        )
         responseObserver.onCompleted()
     }
 
@@ -145,6 +74,88 @@ class ObjectStoreGatewayServer(
                     .build()
             )
             responseObserver.onCompleted()
+        }
+    }
+
+    override fun grantScopePermission(
+        request: GatewayOuterClass.GrantScopePermissionRequest,
+        responseObserver: StreamObserver<GrantScopePermissionResponse>,
+    ) {
+        val requesterAddress = publicKey().getAddress(mainNet = provenanceProperties.mainNet)
+        val grantId = request.grantId.takeIf { it.isNotBlank() }
+        val sourceDetails = "Manual grant request by $requesterAddress for scope ${request.scopeAddress}, grantee ${request.granteeAddress}${if (grantId != null) ", grantId $grantId" else ""}"
+        val grantResponse = scopePermissionsService.processAccessGrant(
+            scopeAddress = request.scopeAddress,
+            granteeAddress = request.granteeAddress,
+            grantSourceAddresses = listOf(requesterAddress),
+            // The application's admin should be able to manually grant any permission that is desired
+            additionalAuthorizedAddresses = listOf(masterKey.publicKey.getAddress(mainNet = provenanceProperties.mainNet)),
+            grantId = grantId,
+            sourceDetails = sourceDetails,
+        )
+        val respond: (accepted: Boolean, granterAddress: String?) -> Unit = { accepted, granterAddress ->
+            responseObserver.onNext(
+                GrantScopePermissionResponse.newBuilder().also { rpcResp ->
+                    rpcResp.request = request
+                    rpcResp.grantAccepted = accepted
+                    granterAddress?.also { rpcResp.granterAddress = it }
+                }.build()
+            )
+            responseObserver.onCompleted()
+        }
+        when (grantResponse) {
+            is GrantResponse.Accepted -> respond(true, grantResponse.granterAddress)
+            is GrantResponse.Rejected -> {
+                logger.warn("REJECTED $sourceDetails: ${grantResponse.message}")
+                respond(false, null)
+            }
+            is GrantResponse.Error -> {
+                logger.error("ERROR $sourceDetails", grantResponse.cause)
+                responseObserver.onError(StatusRuntimeException(Status.UNKNOWN.withCause(grantResponse.cause)))
+            }
+        }
+    }
+
+    override fun revokeScopePermission(
+        request: GatewayOuterClass.RevokeScopePermissionRequest,
+        responseObserver: StreamObserver<RevokeScopePermissionResponse>,
+    ) {
+        val requesterAddress = publicKey().getAddress(mainNet = provenanceProperties.mainNet)
+        val grantId = request.grantId.takeIf { it.isNotBlank() }
+        val sourceDetails = "Main revoke request by $requesterAddress for scope ${request.scopeAddress}, grantee ${request.granteeAddress}${if (grantId != null) ", grantId $grantId" else ""}"
+        val revokeResponse = scopePermissionsService.processAccessRevoke(
+            scopeAddress = request.scopeAddress,
+            granteeAddress = request.granteeAddress,
+            revokeSourceAddresses = listOf(requesterAddress),
+            additionalAuthorizedAddresses = listOf(
+                // The grantee should be able to remove their own grants upon request
+                request.granteeAddress,
+                // The application's admin should be able to manually revoke any permission that is desired
+                masterKey.publicKey.getAddress(mainNet = provenanceProperties.mainNet),
+            ),
+            grantId = grantId,
+            sourceDetails = sourceDetails,
+        )
+        val respond: (accepted: Boolean, revokedGrants: Int?) -> Unit = { accepted, revokedGrants ->
+            responseObserver.onNext(
+                RevokeScopePermissionResponse.newBuilder().also { rpcResp ->
+                    rpcResp.request = request
+                    rpcResp.revokeAccepted = accepted
+                    revokedGrants?.also { rpcResp.revokedGrantsCount = it }
+                }.build()
+            )
+            responseObserver.onCompleted()
+        }
+        when (revokeResponse) {
+            is RevokeResponse.Accepted -> respond(true, revokeResponse.revokedGrantsCount)
+            is RevokeResponse.Rejected -> {
+                logger.warn("REJECTED $sourceDetails: ${revokeResponse.message}")
+                respond(false, null)
+            }
+            is RevokeResponse.Error -> {
+                logger.error("ERROR $sourceDetails", revokeResponse.cause)
+                responseObserver.onError(StatusRuntimeException(Status.UNKNOWN.withCause(revokeResponse.cause)))
+            }
         }
     }
 }

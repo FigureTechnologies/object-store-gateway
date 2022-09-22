@@ -9,14 +9,9 @@ import io.provenance.client.grpc.PbClient
 import io.provenance.client.protobuf.extensions.toAny
 import io.provenance.eventstream.stream.models.Event
 import io.provenance.eventstream.stream.models.TxEvent
-import io.provenance.hdwallet.bip39.MnemonicWords
 import io.provenance.hdwallet.ec.extensions.toJavaECPublicKey
 import io.provenance.hdwallet.wallet.Account
-import io.provenance.hdwallet.wallet.Wallet
-import io.provenance.metadata.v1.Party
 import io.provenance.metadata.v1.PartyType
-import io.provenance.metadata.v1.ScopeResponse
-import io.provenance.metadata.v1.SessionWrapper
 import io.provenance.scope.encryption.ecies.ECUtils
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.deleteAll
@@ -28,6 +23,9 @@ import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
 import tech.figure.objectstore.gateway.eventstream.AcContractKey
 import tech.figure.objectstore.gateway.eventstream.GatewayExpectedAttribute
 import tech.figure.objectstore.gateway.eventstream.GatewayExpectedEventType
+import tech.figure.objectstore.gateway.helpers.bech32Address
+import tech.figure.objectstore.gateway.helpers.genRandomAccount
+import tech.figure.objectstore.gateway.helpers.mockScopeResponse
 import tech.figure.objectstore.gateway.model.ScopePermission
 import tech.figure.objectstore.gateway.model.ScopePermissionsTable
 import tech.figure.objectstore.gateway.repository.ScopePermissionsRepository
@@ -70,20 +68,16 @@ class StreamEventHandlerServiceTest {
         provenanceProperties = mockk()
 
         every { provenanceProperties.mainNet } returns false
-        every { scopeFetchService.fetchScope(any(), any(), any()) } returns ScopeResponse.newBuilder()
-            .apply {
-                scopeBuilder.scopeBuilder
-                    .addOwners(Party.newBuilder().setRole(PartyType.PARTY_TYPE_OWNER).setAddress(onboardingOwner.bech32Address))
-                    .addOwners(Party.newBuilder().setRole(PartyType.PARTY_TYPE_AFFILIATE).setAddress(priorityOwnerAddress))
-                    .addDataAccess(dataAccessAddress)
-                scopeBuilder.scopeBuilder.valueOwnerAddress = onboardingOwner.bech32Address
-            }.addSessions(
-                SessionWrapper.newBuilder()
-                    .apply {
-                        sessionBuilder.addParties(Party.newBuilder().setRoleValue(PartyType.PARTY_TYPE_CUSTODIAN_VALUE).setAddress(sessionPartyAddress))
-                    }
-            )
-            .build()
+        every { scopeFetchService.fetchScope(any(), any(), any()) } returns mockScopeResponse(
+            address = scopeAddress,
+            owners = setOf(
+                PartyType.PARTY_TYPE_OWNER to onboardingOwner.bech32Address,
+                PartyType.PARTY_TYPE_AFFILIATE to priorityOwnerAddress,
+            ),
+            dataAccessAddresses = setOf(dataAccessAddress),
+            valueOwnerAddress = onboardingOwner.bech32Address,
+            sessionParties = setOf(PartyType.PARTY_TYPE_CUSTODIAN to sessionPartyAddress),
+        )
         every { pbClient.cosmosService.getTx(any()) } returns GetTxResponse.newBuilder()
             .apply {
                 txBuilder.authInfoBuilder.addSignerInfos(
@@ -487,14 +481,4 @@ class StreamEventHandlerServiceTest {
 
     private fun String.base64Encode(): String = Base64.getEncoder().encodeToString(toByteArray())
     private fun Pair<String, String>.toEvent(): Event = Event(first.base64Encode(), second.base64Encode())
-
-    private fun genRandomAccount(): Account = Wallet.fromMnemonic(
-        hrp = "tp",
-        passphrase = "",
-        mnemonicWords = MnemonicWords.generate(strength = 256),
-        testnet = true,
-    )["m/44'/1'/0'/0/0'"]
-
-    private val Account.bech32Address: String
-        get() = address.value
 }
