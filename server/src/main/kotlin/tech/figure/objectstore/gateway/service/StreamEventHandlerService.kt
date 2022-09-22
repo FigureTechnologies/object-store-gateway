@@ -4,8 +4,6 @@ import cosmos.crypto.secp256k1.Keys.PubKey
 import cosmos.tx.v1beta1.ServiceOuterClass.GetTxRequest
 import io.provenance.client.grpc.PbClient
 import io.provenance.eventstream.stream.models.TxEvent
-import io.provenance.metadata.v1.ScopeRequest
-import io.provenance.metadata.v1.ScopeResponse
 import io.provenance.scope.encryption.ecies.ECUtils
 import io.provenance.scope.encryption.util.getAddress
 import mu.KLogging
@@ -16,12 +14,10 @@ import tech.figure.objectstore.gateway.eventstream.AssetClassificationEvent
 import tech.figure.objectstore.gateway.eventstream.GatewayEvent
 import tech.figure.objectstore.gateway.eventstream.GatewayExpectedEventType
 import tech.figure.objectstore.gateway.extensions.checkNotNull
-import tech.figure.objectstore.gateway.repository.ScopePermissionsRepository
 
 @Service
 class StreamEventHandlerService(
-    private val accountAddresses: Set<String>,
-    private val scopePermissionsRepository: ScopePermissionsRepository,
+    private val scopePermissionsService: ScopePermissionsService,
     private val pbClient: PbClient,
     private val provenanceProperties: ProvenanceProperties,
 ) {
@@ -37,78 +33,39 @@ class StreamEventHandlerService(
     fun handleEvent(event: TxEvent) {
         // Try first to intercept incoming events as Gateway events, but fallback to asset classification if the event
         // does not fit the expected gateway event structure
-        GatewayEvent.fromEventOrNull(event)?.also { gatewayEvent ->
+        GatewayEvent.fromEventOrNull(event)?.let { gatewayEvent ->
             when (gatewayEvent.eventType) {
-                GatewayExpectedEventType.ACCESS_GRANT -> handleGatewayGrant(gatewayEvent)
-                GatewayExpectedEventType.ACCESS_REVOKE -> handleGatewayRevoke(gatewayEvent)
+                GatewayExpectedEventType.ACCESS_GRANT -> scopePermissionsService.processAccessGrant(
+                    scopeAddress = gatewayEvent.scopeAddress,
+                    granteeAddress = gatewayEvent.targetAccount,
+                    grantSourceAddresses = getSignerAddressesForTx(gatewayEvent.txHash),
+                    grantId = gatewayEvent.accessGrantId,
+                    sourceDetails = "source: $gatewayEvent",
+                ).also { grantResponse ->
+                    when (grantResponse) {
+                        is GrantResponse.Accepted -> logger.info("$gatewayEvent succeeded in creating grant with granter [${grantResponse.granterAddress}]")
+                        is GrantResponse.Rejected -> logger.warn("$gatewayEvent rejected: ${grantResponse.message}")
+                        is GrantResponse.Error -> logger.error("$gatewayEvent failed with error", grantResponse.cause)
+                    }
+                }
+                GatewayExpectedEventType.ACCESS_REVOKE -> scopePermissionsService.processAccessRevoke(
+                    scopeAddress = gatewayEvent.scopeAddress,
+                    granteeAddress = gatewayEvent.targetAccount,
+                    revokeSourceAddresses = getSignerAddressesForTx(gatewayEvent.txHash),
+                    // Include the target account as an account that can revoke permissions.  Any account should be able
+                    // to revoke its own grants
+                    additionalAuthorizedAddresses = setOf(gatewayEvent.targetAccount),
+                    grantId = gatewayEvent.accessGrantId,
+                    sourceDetails = "source: $gatewayEvent",
+                ).also { revokeResponse ->
+                    when (revokeResponse) {
+                        is RevokeResponse.Accepted -> logger.info("$gatewayEvent succeeded in revoking ${revokeResponse.revokedGrantsCount} grant(s)")
+                        is RevokeResponse.Rejected -> logger.warn("$gatewayEvent rejected: ${revokeResponse.message}")
+                        is RevokeResponse.Error -> logger.error("$gatewayEvent failed with error", revokeResponse.cause)
+                    }
+                }
             }
         } ?: handleAssetClassificationEvent(AssetClassificationEvent(event))
-    }
-
-    /**
-     * Uses a successfully-parsed gateway grant event to grant access to a scope's underlying records if all validation
-     * for the event's formation passes.
-     *
-     * @param gatewayEvent A wasm-emitted event that uses the gateway access grant event type.
-     */
-    private fun handleGatewayGrant(gatewayEvent: GatewayEvent) {
-        val scopeResponse = lookupScope(gatewayEvent.scopeAddress)
-        // Ensure that the referenced scope is owned in some way by one of the gateway's registered keys.
-        // This ensures that properly-stored scopes will be able to be successfully decrypted in future requests by
-        // the granted address.
-        val granterAddress = findRegisteredScopeOwnerAddress(scopeResponse) ?: run {
-            logger.info("Skipping $gatewayEvent not owned by any registered granters")
-            return
-        }
-        // Ensure that the scope's value owner signed for the transaction that emitted this wasm event.  This ensures
-        // that this access grant has been safely requested and should be made
-        getSignerAddressesForTx(gatewayEvent.txHash).also { signerAddresses ->
-            // TODO: Do a reverse lookup for authz grants from the scope owner to signers to allow requests not directly
-            // originating from the scope owner - will have to determine a list of which grants are accessible.
-            if (scopeResponse.scope.scope.valueOwnerAddress !in signerAddresses) {
-                // This is a warning because an event attempted to grant access without actually owning the reference
-                // scope.  This indicates a bad configuration or an attempt to hijack data access.
-                logger.warn("Skipping $gatewayEvent due to unrelated signers: $signerAddresses")
-                return
-            }
-        }
-        handleAccessGrant(
-            txHash = gatewayEvent.txHash,
-            scopeAddress = gatewayEvent.scopeAddress,
-            granterAddress = granterAddress,
-            granteeAddress = gatewayEvent.targetAccount,
-            grantId = gatewayEvent.accessGrantId,
-        )
-    }
-
-    /**
-     * Uses a successfully-parsed gateway revoke event to revoke access to a scope's underlying records from a target
-     * bech32 address if all validation for the event's formation passes.
-     *
-     * @param gatewayEvent A wasm-emitted event that uses the gateway access revoke event type.
-     */
-    private fun handleGatewayRevoke(gatewayEvent: GatewayEvent) {
-        // Ensure that the event was in a transaction signed by either the target account or the scope owner.  This
-        // validates that either the scope owner no longer wishes for the target account to have a grant, or that the
-        // target account itself wishes to remove its own access
-        getSignerAddressesForTx(gatewayEvent.txHash).also { signerAddresses ->
-            logger.info("Found signers for tx [${gatewayEvent.txHash}]: $signerAddresses")
-            // TODO: Do a reverse lookup for authz grants from the scope owner to signers to allow requests not directly
-            // originating from the scope owner - will have to determine a list of which grants are accessible.
-            if (
-                gatewayEvent.targetAccount !in signerAddresses &&
-                lookupScope(gatewayEvent.scopeAddress, includeSessions = false).scope.scope.valueOwnerAddress !in signerAddresses
-            ) {
-                logger.warn("Skipping $gatewayEvent for unrelated signers (not scope value owner or target address). Signers: $signerAddresses")
-                return
-            }
-        }
-        logger.info("[ACCESS REVOKE | Tx: ${gatewayEvent.txHash}]: Revoking account [${gatewayEvent.targetAccount}] from access list for scope [${gatewayEvent.scopeAddress}]${if (gatewayEvent.accessGrantId != null) " with grant ID [${gatewayEvent.accessGrantId}]" else ""}")
-        scopePermissionsRepository.revokeAccessPermission(
-            scopeAddress = gatewayEvent.scopeAddress,
-            granteeAddress = gatewayEvent.targetAccount,
-            grantId = gatewayEvent.accessGrantId,
-        )
     }
 
     /**
@@ -117,7 +74,7 @@ class StreamEventHandlerService(
      *
      * @param txHash The hashed output for the transaction that emitted the given event.
      */
-    private fun getSignerAddressesForTx(txHash: String): List<String> = pbClient
+    private fun getSignerAddressesForTx(txHash: String): Set<String> = pbClient
         .cosmosService
         .getTx(GetTxRequest.newBuilder().setHash(txHash).build())
         .tx
@@ -126,6 +83,7 @@ class StreamEventHandlerService(
         .map { signerInfo -> signerInfo.publicKey.unpack(PubKey::class.java).key.toByteArray() }
         .map(ECUtils::convertBytesToPublicKey)
         .map { publicKey -> publicKey.getAddress(provenanceProperties.mainNet) }
+        .toSet()
 
     /**
      * Handles a given asset classification smart contract event.  This is a legacy handling function and should be
@@ -152,96 +110,16 @@ class StreamEventHandlerService(
             logger.debug("No way to determine which verifier event at tx hash [${event.txHash}] was targeting. The address was null")
             return
         }
-        // only handle events onboarded by registered key
-        val registeredAddress = event.findRegisteredScopeOwnerAddress()
-        if (registeredAddress == null) {
-            logger.info("Skipping event of type [${event.eventType}] for unrelated scope owner [${event.scopeOwnerAddress}]")
-            return
-        }
         when (event.eventType) {
-            AcContractEvent.ONBOARD_ASSET -> handleAccessGrant(
-                txHash = event.txHash,
+            AcContractEvent.ONBOARD_ASSET -> scopePermissionsService.processAccessGrant(
                 scopeAddress = event.scopeAddress.checkNotNull { "[ONBOARD ASSET | Tx: ${event.txHash}]: Expected the onboard asset event to include a scope address" },
-                granteeAddress = event.verifierAddress!!,
-                granterAddress = registeredAddress,
+                granteeAddress = event.verifierAddress.checkNotNull { "[ONBOARD ASSET | Tx: ${event.txHash}]: Expected the onboard asset event to include a verifier address" },
+                // The scope owner address is established in the contract by directly using the sender of the contract message,
+                // making this relatively safe.
+                grantSourceAddresses = setOfNotNull(event.scopeOwnerAddress),
+                sourceDetails = "Asset Classification Event from tx [${event.txHash}]",
             )
             else -> throw IllegalStateException("After all event checks, an unexpected event was attempted for processing. Tx hash: [${event.txHash}], event type: [${event.eventType}]")
         }
-    }
-
-    /**
-     * Fetches scope details for a given bech32 Provenance Blockchain scope address.
-     *
-     * @param scopeAddress The unique bech32 address that points to a pbc scope.
-     * @param includeSessions If true, session value for the scope will be fetched from the chain.  Useful for scope
-     * owner linking to the registered object store keys for deserialization during scope fetches.
-     */
-    private fun lookupScope(scopeAddress: String, includeSessions: Boolean = true): ScopeResponse = pbClient
-        .metadataClient
-        .scope(ScopeRequest.newBuilder().setScopeId(scopeAddress).setIncludeSessions(includeSessions).build())
-
-    private fun AssetClassificationEvent.findRegisteredScopeOwnerAddress(): String? = if (scopeOwnerAddress.isWatchedAddress()) {
-        scopeOwnerAddress
-    } else {
-        findRegisteredScopeOwnerAddress(
-            scopeResponse = lookupScope(
-                scopeAddress = scopeAddress
-                    ?: error("Asset Classification Event [${this.txHash}] did not include a scope address"),
-            )
-        )
-    }
-
-    /**
-     * Determines if the target scope contains a registered object store deserialization key.
-     *
-     * @param scopeResponse The response from the Provenance Blockchain that denotes all the values within a scope.
-     */
-    private fun findRegisteredScopeOwnerAddress(scopeResponse: ScopeResponse): String? {
-        scopeResponse.scope.scope.ownersList.firstOrNull { it.address.isWatchedAddress() }?.also {
-            return it.address
-        }
-        scopeResponse.scope.scope.dataAccessList.firstOrNull { it.isWatchedAddress() }?.also {
-            return it
-        }
-        scopeResponse.sessionsList.flatMap { it.session.partiesList }.firstOrNull { it.address.isWatchedAddress() }
-            ?.also {
-                return it.address
-            }
-        return null
-    }
-
-    /**
-     * Extension function to determine if the value is contained in the registered object store deserialization addresses.
-     */
-    private fun String?.isWatchedAddress(): Boolean = this in accountAddresses
-
-    /**
-     * Inserts the specified access information into the database.  This grants unfettered access to the given grantee
-     * for the target scope, so this function should be used only after verifying that this action was safely and
-     * properly requested.
-     *
-     * @param txHash The hash of the transaction that contained the event that caused this grant.
-     * @param scopeAddress The bech32 address of the target scope for which to grant access.
-     * @param granteeAddress The bech32 address of the target account for which to permit scope record access.
-     * @param granterAddress The bech32 address of the key that will be used to deserialize object store scope record data
-     * upon requests made by the grantee.
-     * @param grantId An optional parameter that denotes that only records with this specific grant ID should be deleted.
-     * If omitted, all records with this scopeAddress and granteeAddress combination will be deleted.
-     */
-    private fun handleAccessGrant(
-        txHash: String,
-        scopeAddress: String,
-        granteeAddress: String,
-        granterAddress: String,
-        grantId: String? = null,
-    ) {
-        // fetch scope and add all hashes to lookup? Or just add scope to lookup? (probably do all hashes in v2)
-        logger.info("[ACCESS GRANT | Tx: $txHash]: Adding account [$granteeAddress] to access list for scope [$scopeAddress] with granter [$granterAddress]")
-        scopePermissionsRepository.addAccessPermission(
-            scopeAddress = scopeAddress,
-            granteeAddress = granteeAddress,
-            granterAddress = granterAddress,
-            grantId = grantId,
-        )
     }
 }

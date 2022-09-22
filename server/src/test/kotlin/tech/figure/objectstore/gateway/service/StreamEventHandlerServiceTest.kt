@@ -9,14 +9,9 @@ import io.provenance.client.grpc.PbClient
 import io.provenance.client.protobuf.extensions.toAny
 import io.provenance.eventstream.stream.models.Event
 import io.provenance.eventstream.stream.models.TxEvent
-import io.provenance.hdwallet.bip39.MnemonicWords
 import io.provenance.hdwallet.ec.extensions.toJavaECPublicKey
 import io.provenance.hdwallet.wallet.Account
-import io.provenance.hdwallet.wallet.Wallet
-import io.provenance.metadata.v1.Party
 import io.provenance.metadata.v1.PartyType
-import io.provenance.metadata.v1.ScopeResponse
-import io.provenance.metadata.v1.SessionWrapper
 import io.provenance.scope.encryption.ecies.ECUtils
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.deleteAll
@@ -28,6 +23,9 @@ import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
 import tech.figure.objectstore.gateway.eventstream.AcContractKey
 import tech.figure.objectstore.gateway.eventstream.GatewayExpectedAttribute
 import tech.figure.objectstore.gateway.eventstream.GatewayExpectedEventType
+import tech.figure.objectstore.gateway.helpers.bech32Address
+import tech.figure.objectstore.gateway.helpers.genRandomAccount
+import tech.figure.objectstore.gateway.helpers.mockScopeResponse
 import tech.figure.objectstore.gateway.model.ScopePermission
 import tech.figure.objectstore.gateway.model.ScopePermissionsTable
 import tech.figure.objectstore.gateway.repository.ScopePermissionsRepository
@@ -36,20 +34,21 @@ import java.time.OffsetDateTime
 import java.util.Base64
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
-import kotlin.test.assertNull
+import kotlin.test.fail
 
 @SpringBootTest
 class StreamEventHandlerServiceTest {
-    val onboardingOwnerAddress = "onboardingOwner"
-    val otherOwnerAddress = "otherOwner"
+    val onboardingOwner: Account = genRandomAccount() // Access the standard testnet account address
+    val priorityOwnerAddress = "prioritizedOwner" // This is the first value located in ScopePermissionsService.findRegisteredScopeOwnerAddress(), and will be the granter in most circumstances
     val sessionPartyAddress = "sessionParty"
     val dataAccessAddress = "dataAccess"
     val grantee: Account = genRandomAccount()
     val scopeAddress = "scopeAddress"
-    val valueOwner: Account = genRandomAccount() // Access the standard testnet account address
 
     lateinit var pbClient: PbClient
     lateinit var provenanceProperties: ProvenanceProperties
+    lateinit var scopeFetchService: ScopeFetchService
+    lateinit var scopePermissionsService: ScopePermissionsService
     lateinit var scopePermissionsRepository: ScopePermissionsRepository
     lateinit var service: StreamEventHandlerService
 
@@ -59,28 +58,25 @@ class StreamEventHandlerServiceTest {
     }
 
     fun setUp(
-        vararg watchedAddresses: String = listOf(onboardingOwnerAddress, otherOwnerAddress, sessionPartyAddress, dataAccessAddress).toTypedArray(),
-        txSigner: Account = valueOwner,
+        vararg watchedAddresses: String = listOf(priorityOwnerAddress, sessionPartyAddress, dataAccessAddress).toTypedArray(),
+        txSigner: Account = onboardingOwner,
     ) {
         scopePermissionsRepository = ScopePermissionsRepository()
         pbClient = mockk()
+        scopeFetchService = mockk()
         provenanceProperties = mockk()
 
         every { provenanceProperties.mainNet } returns false
-        every { pbClient.metadataClient.scope(any()) } returns ScopeResponse.newBuilder()
-            .apply {
-                scopeBuilder.scopeBuilder
-                    .addOwners(Party.newBuilder().setRole(PartyType.PARTY_TYPE_OWNER).setAddress(onboardingOwnerAddress))
-                    .addOwners(Party.newBuilder().setRole(PartyType.PARTY_TYPE_AFFILIATE).setAddress(otherOwnerAddress))
-                    .addDataAccess(dataAccessAddress)
-                scopeBuilder.scopeBuilder.valueOwnerAddress = valueOwner.bech32Address
-            }.addSessions(
-                SessionWrapper.newBuilder()
-                    .apply {
-                        sessionBuilder.addParties(Party.newBuilder().setRoleValue(PartyType.PARTY_TYPE_CUSTODIAN_VALUE).setAddress(sessionPartyAddress))
-                    }
-            )
-            .build()
+        every { scopeFetchService.fetchScope(any(), any(), any()) } returns mockScopeResponse(
+            address = scopeAddress,
+            owners = setOf(
+                PartyType.PARTY_TYPE_OWNER to onboardingOwner.bech32Address,
+                PartyType.PARTY_TYPE_AFFILIATE to priorityOwnerAddress,
+            ),
+            dataAccessAddresses = setOf(dataAccessAddress),
+            valueOwnerAddress = onboardingOwner.bech32Address,
+            sessionParties = setOf(PartyType.PARTY_TYPE_CUSTODIAN to sessionPartyAddress),
+        )
         every { pbClient.cosmosService.getTx(any()) } returns GetTxResponse.newBuilder()
             .apply {
                 txBuilder.authInfoBuilder.addSignerInfos(
@@ -93,7 +89,16 @@ class StreamEventHandlerServiceTest {
                 )
             }.build()
 
-        service = StreamEventHandlerService(watchedAddresses.toSet(), scopePermissionsRepository, pbClient, provenanceProperties)
+        scopePermissionsService = ScopePermissionsService(
+            accountAddresses = watchedAddresses.toSet(),
+            scopeFetchService = scopeFetchService,
+            scopePermissionsRepository = scopePermissionsRepository,
+        )
+        service = StreamEventHandlerService(
+            scopePermissionsService = scopePermissionsService,
+            pbClient = pbClient,
+            provenanceProperties = provenanceProperties,
+        )
     }
 
     @Test
@@ -102,7 +107,7 @@ class StreamEventHandlerServiceTest {
 
         submitAssetClassificationEvent()
 
-        assertEquals(listOf(onboardingOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
+        assertEquals(listOf(priorityOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
     }
 
     @Test
@@ -111,25 +116,25 @@ class StreamEventHandlerServiceTest {
 
         submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
 
-        assertEquals(listOf(onboardingOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
+        assertEquals(listOf(priorityOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
     }
 
     @Test
     fun `StreamEventHandlerService chooses other scopeOwner as granter when that address is watched and onboarding owner is not from asset classification event`() {
-        setUp(otherOwnerAddress, sessionPartyAddress, dataAccessAddress)
+        setUp(priorityOwnerAddress, sessionPartyAddress, dataAccessAddress)
 
         submitAssetClassificationEvent()
 
-        assertEquals(listOf(otherOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
+        assertEquals(listOf(priorityOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
     }
 
     @Test
     fun `StreamEventHandlerService chooses other scopeOwner as granter when that address is watched and onboarding owner is not from gateway grant event`() {
-        setUp(otherOwnerAddress, sessionPartyAddress, dataAccessAddress)
+        setUp(priorityOwnerAddress, sessionPartyAddress, dataAccessAddress)
 
         submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
 
-        assertEquals(listOf(otherOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
+        assertEquals(listOf(priorityOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
     }
 
     @Test
@@ -200,7 +205,7 @@ class StreamEventHandlerServiceTest {
         submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
 
         assertEquals(
-            expected = listOf(onboardingOwnerAddress),
+            expected = listOf(priorityOwnerAddress),
             actual = scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address),
             message = "Access should be given to grantee from the scope owner",
         )
@@ -221,7 +226,7 @@ class StreamEventHandlerServiceTest {
         submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
 
         assertEquals(
-            expected = listOf(onboardingOwnerAddress),
+            expected = listOf(priorityOwnerAddress),
             actual = scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address),
             message = "Access should be given to grantee from the scope owner",
         )
@@ -244,7 +249,7 @@ class StreamEventHandlerServiceTest {
         submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
 
         assertEquals(
-            expected = listOf(onboardingOwnerAddress),
+            expected = listOf(priorityOwnerAddress),
             actual = scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address),
             message = "Access should be given to grantee from the scope owner",
         )
@@ -254,7 +259,7 @@ class StreamEventHandlerServiceTest {
         submitGatewayEvent(GatewayExpectedEventType.ACCESS_REVOKE)
 
         assertEquals(
-            expected = listOf(onboardingOwnerAddress),
+            expected = listOf(priorityOwnerAddress),
             actual = scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address),
             message = "Access should remain for the grantee because the revoke was ignored for not having a valid signer",
         )
@@ -272,7 +277,7 @@ class StreamEventHandlerServiceTest {
         submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
 
         assertEquals(
-            expected = listOf(onboardingOwnerAddress),
+            expected = listOf(priorityOwnerAddress),
             actual = scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address).distinct(),
             message = "All granters should be located for the given combinations, but because they all use the same granter, only one result should be returned",
         )
@@ -282,81 +287,19 @@ class StreamEventHandlerServiceTest {
     }
 
     @Test
-    fun `StreamEventHandlerService removes any and disregards grant id when revoke expression does not include it`() {
+    fun `StreamEventHandlerService gracefully handles unrelated access revoke`() {
         setUp()
 
-        val firstGrantId = "the best grant ever"
-        val secondGrantId = "the betterest grant ever"
-        val thirdGrantId = "I don't even have a fake adjective for this one"
-
-        submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT, grantId = firstGrantId)
-        submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT, grantId = secondGrantId)
-        submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT, grantId = thirdGrantId)
-        submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT, grantId = null)
-
-        assertScopePermissionExists(grantId = firstGrantId)
-        assertScopePermissionExists(grantId = secondGrantId)
-        assertScopePermissionExists(grantId = thirdGrantId)
-        assertScopePermissionExists(grantId = null)
-
-        submitGatewayEvent(GatewayExpectedEventType.ACCESS_REVOKE)
-
-        assertScopePermissionDoesNotExist(grantId = firstGrantId, messagePrefix = "The first grant should be removed after an access revoke does not supply a grant id")
-        assertScopePermissionDoesNotExist(grantId = secondGrantId, messagePrefix = "The second grant should be removed after an access revoke does not supply a grant id")
-        assertScopePermissionDoesNotExist(grantId = thirdGrantId, messagePrefix = "The third grant should be removed after an access revoke does not supply a grant id")
-        assertScopePermissionDoesNotExist(grantId = null, messagePrefix = "The null id grant should be removed after an access revoke does not supply a grant id")
-
-        assertEquals(
-            expected = emptyList(),
-            actual = scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address),
-            message = "All grants should be removed when the revocation does not supply a targeted grant id",
-        )
-    }
-
-    @Test
-    fun `StreamEventHandlerService removes grant id specifically upon request`() {
-        setUp()
-
-        val firstGrantId = "first-grant"
-        val secondGrantId = "second-grant"
-
-        submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT, grantId = firstGrantId)
-        submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT, grantId = secondGrantId)
-        submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
-
-        assertScopePermissionExists(grantId = firstGrantId)
-        assertScopePermissionExists(grantId = secondGrantId)
-        assertScopePermissionExists(grantId = null)
-
-        submitGatewayEvent(GatewayExpectedEventType.ACCESS_REVOKE, grantId = "other grant id")
-
-        assertScopePermissionExists(grantId = firstGrantId, messagePrefix = "First grant should still exist after targeting a nonexistent grant id")
-        assertScopePermissionExists(grantId = secondGrantId, messagePrefix = "Second grant should still exist after targeting a nonexistent grant id")
-        assertScopePermissionExists(grantId = null, messagePrefix = "Null id grant should still exist after targeting a nonexistent grant id")
-
-        submitGatewayEvent(GatewayExpectedEventType.ACCESS_REVOKE, grantId = firstGrantId)
-
-        assertScopePermissionDoesNotExist(grantId = firstGrantId, messagePrefix = "First grant should be deleted after an access revoke requested it")
-        assertScopePermissionExists(grantId = secondGrantId, messagePrefix = "Second grant should still exist after only deleting the first grant id's record")
-        assertScopePermissionExists(grantId = null, messagePrefix = "Null id grant should still exist after only deleting the first grant id's record")
-
-        submitGatewayEvent(GatewayExpectedEventType.ACCESS_REVOKE, grantId = secondGrantId)
-
-        assertScopePermissionDoesNotExist(grantId = firstGrantId, messagePrefix = "First grant should remain deleted after deleting the second grant")
-        assertScopePermissionDoesNotExist(grantId = secondGrantId, messagePrefix = "Second grant should be deleted after an access revoke requested it")
-        assertScopePermissionExists(grantId = null, messagePrefix = "Null id grant should still exist after only deleting the second grant id's record")
-
-        submitGatewayEvent(GatewayExpectedEventType.ACCESS_REVOKE)
-
-        assertScopePermissionDoesNotExist(grantId = firstGrantId, messagePrefix = "First grant should remain deleted after removing grants with a null grant id")
-        assertScopePermissionDoesNotExist(grantId = secondGrantId, messagePrefix = "Second grant should remain deleted after removing grants with a null grant id")
-        assertScopePermissionDoesNotExist(grantId = null, messagePrefix = "Null id grant should be deleted after an access revoke requested all grants to be deleted")
-
-        assertEquals(
-            expected = emptyList(),
-            actual = scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address),
-            message = "After all grants have been deleted, no granter addresses should be available to the grantee",
-        )
+        listOf(
+            null to "Unexpected revocation with no target grant id should be handled without error",
+            "grantId" to "Unexpected revocation with explicit grant id should be handled without error",
+        ).forEach { (grantId, errorMessage) ->
+            try {
+                submitGatewayEvent(GatewayExpectedEventType.ACCESS_REVOKE, grantId = grantId)
+            } catch (e: Exception) {
+                fail(message = errorMessage, cause = e)
+            }
+        }
     }
 
     private fun submitAssetClassificationEvent() {
@@ -365,7 +308,7 @@ class StreamEventHandlerServiceTest {
                 AcContractKey.EVENT_TYPE.eventName to "onboard_asset",
                 AcContractKey.ASSET_TYPE.eventName to "payable",
                 AcContractKey.SCOPE_ADDRESS.eventName to scopeAddress,
-                AcContractKey.SCOPE_OWNER_ADDRESS.eventName to onboardingOwnerAddress,
+                AcContractKey.SCOPE_OWNER_ADDRESS.eventName to onboardingOwner.bech32Address,
                 AcContractKey.VERIFIER_ADDRESS.eventName to grantee.bech32Address,
             )
         )
@@ -408,7 +351,7 @@ class StreamEventHandlerServiceTest {
 
     private fun assertScopePermissionExists(
         targetScopeAddress: String = scopeAddress,
-        granterAddress: String = onboardingOwnerAddress,
+        granterAddress: String = priorityOwnerAddress,
         granteeAddress: String = grantee.bech32Address,
         grantId: String? = null,
         messagePrefix: String? = null,
@@ -423,24 +366,6 @@ class StreamEventHandlerServiceTest {
             message = "${messagePrefix ?: "Scope permission does not exist"}: Expected scope permission with scope address [$targetScopeAddress], granter [$granterAddress], grantee [$granteeAddress], and grant ID [$grantId] to exist",
         )
         scopePermissionOrNull
-    }
-
-    private fun assertScopePermissionDoesNotExist(
-        targetScopeAddress: String = scopeAddress,
-        granterAddress: String = onboardingOwnerAddress,
-        granteeAddress: String = grantee.bech32Address,
-        grantId: String? = null,
-        messagePrefix: String? = null,
-    ) {
-        assertNull(
-            actual = findScopePermissionOrNull(
-                scopeAddress = targetScopeAddress,
-                granterAddress = granterAddress,
-                granteeAddress = granteeAddress,
-                grantId = grantId,
-            ),
-            message = "${messagePrefix ?: "Scope permission should not exist"}: Found scope permission with scope address [$targetScopeAddress], granter [$granterAddress], grantee [$granteeAddress], and grant ID [$grantId]",
-        )
     }
 
     private fun findScopePermissionOrNull(
@@ -459,14 +384,4 @@ class StreamEventHandlerServiceTest {
 
     private fun String.base64Encode(): String = Base64.getEncoder().encodeToString(toByteArray())
     private fun Pair<String, String>.toEvent(): Event = Event(first.base64Encode(), second.base64Encode())
-
-    private fun genRandomAccount(): Account = Wallet.fromMnemonic(
-        hrp = "tp",
-        passphrase = "",
-        mnemonicWords = MnemonicWords.generate(strength = 256),
-        testnet = true,
-    )["m/44'/1'/0'/0/0'"]
-
-    private val Account.bech32Address: String
-        get() = address.value
 }

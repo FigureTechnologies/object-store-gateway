@@ -106,7 +106,7 @@ class ScopeFetchServiceTest {
         every { scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, requesterAddress) } returns listOf()
 
         val exception = assertThrows<AccessDeniedException> {
-            service.fetchScope(scopeAddress, encryptionPublicKey, null)
+            service.fetchScopeForGrantee(scopeAddress, encryptionPublicKey, null)
         }
 
         assertNotNull(exception.status.description)
@@ -117,7 +117,7 @@ class ScopeFetchServiceTest {
     fun `fetchScope should allow access for a scope owner even when no scope access is set up and owner is in encryption keys`() {
         val encryptionPublicKey = scopeOwnerKey.second.publicKey
 
-        val records = service.fetchScope(scopeAddress, encryptionPublicKey, null)
+        val records = service.fetchScopeForGrantee(scopeAddress, encryptionPublicKey, null)
 
         assertEquals(2, records.size)
         records.forEachIndexed { i, record ->
@@ -139,7 +139,7 @@ class ScopeFetchServiceTest {
         every { scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, requesterAddress) } returns listOf(granterAddress)
 
         val exception = assertThrows<AccessDeniedException> {
-            service.fetchScope(scopeAddress, encryptionPublicKey, null)
+            service.fetchScopeForGrantee(scopeAddress, encryptionPublicKey, null)
         }
 
         assertNotNull(exception.status.description)
@@ -153,7 +153,7 @@ class ScopeFetchServiceTest {
         every { pbClient.metadataClient.scope(any()) } returns scopeResponse
         every { scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, scopeOwnerAddress) } returns emptyList()
         val exception = assertThrows<AccessDeniedException> {
-            service.fetchScope(scopeAddress, scopeOwnerKeyRef.publicKey, null)
+            service.fetchScopeForGrantee(scopeAddress, scopeOwnerKeyRef.publicKey, null)
         }
         assertNotNull(exception.status.description)
         assertContains(exception.status.description!!, "Scope access not granted to $scopeOwnerAddress")
@@ -166,7 +166,7 @@ class ScopeFetchServiceTest {
         every { pbClient.metadataClient.scope(any()) } returns scopeResponse
         every { scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, encryptionKeyPair.first) } returns emptyList()
         val exception = assertThrows<AccessDeniedException> {
-            service.fetchScope(scopeAddress, encryptionKeyPair.second.publicKey, null)
+            service.fetchScopeForGrantee(scopeAddress, encryptionKeyPair.second.publicKey, null)
         }
         assertNotNull(exception.status.description)
         assertContains(exception.status.description!!, "Scope access not granted to ${encryptionKeyPair.first}")

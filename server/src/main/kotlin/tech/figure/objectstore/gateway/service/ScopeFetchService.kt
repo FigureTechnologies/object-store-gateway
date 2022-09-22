@@ -2,6 +2,7 @@ package tech.figure.objectstore.gateway.service
 
 import io.provenance.client.grpc.PbClient
 import io.provenance.metadata.v1.ScopeRequest
+import io.provenance.metadata.v1.ScopeResponse
 import io.provenance.scope.encryption.model.KeyRef
 import io.provenance.scope.encryption.util.getAddress
 import io.provenance.scope.objectstore.client.CachedOsClient
@@ -27,10 +28,37 @@ class ScopeFetchService(
 ) {
     companion object : KLogging()
 
-    fun fetchScope(scopeAddress: String, requesterPublicKey: PublicKey, providedGranterAddress: String?): List<GatewayOuterClass.Record> {
+    /**
+     * Fetches scope details for a given bech32 Provenance Blockchain scope address.
+     *
+     * @param scopeAddress The unique bech32 address that points to a pbc scope.
+     * @param includeRecords If true, record values for the scope will be fetched from the chain.  Useful for handling
+     * record details for object store interactions.
+     * @param includeSessions If true, session values for the scope will be fetched from the chain.  Useful for scope
+     * owner linking to the registered object store keys for deserialization during scope fetches.
+     */
+    fun fetchScope(
+        scopeAddress: String,
+        includeRecords: Boolean = false,
+        includeSessions: Boolean = false,
+    ): ScopeResponse = pbClient
+        .metadataClient
+        .scope(
+            ScopeRequest.newBuilder().also { scopeRequest ->
+                scopeRequest.scopeId = scopeAddress
+                scopeRequest.includeRecords = includeRecords
+                scopeRequest.includeSessions = includeSessions
+            }.build()
+        )
+
+    fun fetchScopeForGrantee(
+        scopeAddress: String,
+        requesterPublicKey: PublicKey,
+        providedGranterAddress: String?,
+    ): List<GatewayOuterClass.Record> {
         val requesterAddress = requesterPublicKey.getAddress(provenanceProperties.mainNet)
 
-        val scopeResponse = pbClient.metadataClient.scope(ScopeRequest.newBuilder().setScopeId(scopeAddress).setIncludeRecords(true).build())
+        val scopeResponse = fetchScope(scopeAddress = scopeAddress, includeRecords = true)
 
         // If the requester is registered in the service and they own the scope, there's no reason they can't decrypt their own
         // data
