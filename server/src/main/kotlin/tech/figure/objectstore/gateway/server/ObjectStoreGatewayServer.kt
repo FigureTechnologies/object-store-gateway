@@ -21,8 +21,6 @@ import tech.figure.objectstore.gateway.service.RevokeResponse
 import tech.figure.objectstore.gateway.service.ScopeFetchService
 import tech.figure.objectstore.gateway.service.ScopePermissionsService
 
-// TODO: Determine if Spring provides an automatic exception handler hook for grpc services and use that to give some
-// TODO: flavor to these rpc routes to dynamically create UNKNOWN responses when exceptions are thrown
 @GRpcService(interceptors = [JwtServerInterceptor::class])
 class ObjectStoreGatewayServer(
     private val masterKey: KeyRef,
@@ -32,7 +30,9 @@ class ObjectStoreGatewayServer(
     private val provenanceProperties: ProvenanceProperties,
 ) : GatewayGrpc.GatewayImplBase() {
 
-    companion object : KLogging()
+    companion object : KLogging() {
+        const val DEFAULT_UNKNOWN_DESCRIPTION: String = "An unexpected error occurred.  Please try again later"
+    }
 
     override fun fetchObject(
         request: GatewayOuterClass.FetchObjectRequest,
@@ -111,7 +111,7 @@ class ObjectStoreGatewayServer(
             }
             is GrantResponse.Error -> {
                 logger.error("ERROR $sourceDetails", grantResponse.cause)
-                responseObserver.onError(StatusRuntimeException(Status.UNKNOWN.withCause(grantResponse.cause)))
+                responseObserver.onError(StatusRuntimeException(Status.UNKNOWN.withDescription(DEFAULT_UNKNOWN_DESCRIPTION)))
             }
         }
     }
@@ -154,7 +154,7 @@ class ObjectStoreGatewayServer(
             }
             is RevokeResponse.Error -> {
                 logger.error("ERROR $sourceDetails", revokeResponse.cause)
-                responseObserver.onError(StatusRuntimeException(Status.UNKNOWN.withCause(revokeResponse.cause)))
+                responseObserver.onError(StatusRuntimeException(Status.UNKNOWN.withDescription(DEFAULT_UNKNOWN_DESCRIPTION)))
             }
         }
     }
