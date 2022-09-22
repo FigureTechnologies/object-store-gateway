@@ -48,6 +48,7 @@ import io.provenance.scope.util.toByteString
 import tech.figure.objectstore.gateway.client.ClientConfig
 import tech.figure.objectstore.gateway.client.GatewayClient
 import org.bouncycastle.jce.provider.BouncyCastleProvider
+import tech.figure.objectstore.gateway.client.GatewayJwt
 import tech.figure.proto.util.toProtoUUID
 import java.net.URI
 import java.security.Security
@@ -220,8 +221,9 @@ fun main() {
         )
     ).use { gatewayClient ->
         while (true) {
+            val jwt = GatewayJwt.KeyPairJwt(validatorSigner.account.keyPair.toJavaECKeyPair())
             try {
-                val response = gatewayClient.requestScopeData(scopeAddress, validatorSigner.account.keyPair.toJavaECKeyPair())
+                val response = gatewayClient.requestScopeData(scopeAddress, jwt)
 
                 println("Fetched records $response")
                 break
