@@ -46,6 +46,7 @@ import tech.figure.objectstore.gateway.service.ScopePermissionsService
 import java.security.KeyPair
 import kotlin.random.Random
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 @SpringBootTest
 class ObjectStoreGatewayServerTest {
@@ -249,8 +250,7 @@ class ObjectStoreGatewayServerTest {
     fun `grantScopePermission should return expected unknown response on exception`() {
         setUpBaseServices()
         // Setup scope fetch service to freak out, simulating a provenance communication error
-        val expectedException = IllegalStateException("Provenance is actin' up again")
-        every { scopeFetchService.fetchScope(any(), any(), any()) } throws expectedException
+        every { scopeFetchService.fetchScope(any(), any(), any()) } throws IllegalStateException("Provenance is actin' up again")
         val responseObserver = mockkObserver<GrantScopePermissionResponse>()
         val exceptionSlot = slot<StatusRuntimeException>()
         every { responseObserver.onError(capture(exceptionSlot)) } returns Unit
@@ -264,10 +264,14 @@ class ObjectStoreGatewayServerTest {
             actual = exceptionSlot.captured.status.code,
             message = "The UNKNOWN status should be emitted when an exception is encountered",
         )
-        assertEquals(
-            expected = expectedException,
+        assertNull(
             actual = exceptionSlot.captured.status.cause,
-            message = "The expected exception should be used as the cause by the captured error",
+            message = "The source exception should not be sent to the consumer",
+        )
+        assertEquals(
+            expected = ObjectStoreGatewayServer.DEFAULT_UNKNOWN_DESCRIPTION,
+            actual = exceptionSlot.captured.status.description,
+            message = "The expected description should be sent",
         )
     }
 
@@ -315,8 +319,7 @@ class ObjectStoreGatewayServerTest {
     fun `revokeScopePermission should return expected unknown response on exception`() {
         setUpBaseServices()
         // Setup scope fetch service to freak out, simulating a provenance communication error
-        val expectedException = IllegalArgumentException("That ol' blockchain is givin' us trouble")
-        every { scopeFetchService.fetchScope(any(), any(), any()) } throws expectedException
+        every { scopeFetchService.fetchScope(any(), any(), any()) } throws IllegalArgumentException("That ol' blockchain is givin' us trouble")
         val responseObserver = mockkObserver<RevokeScopePermissionResponse>()
         val exceptionSlot = slot<StatusRuntimeException>()
         every { responseObserver.onError(capture(exceptionSlot)) } returns Unit
@@ -328,12 +331,16 @@ class ObjectStoreGatewayServerTest {
         assertEquals(
             expected = Status.UNKNOWN.code,
             actual = exceptionSlot.captured.status.code,
-            message = "The UNKNOWN status shoudl be emitted when an exception is encountered",
+            message = "The UNKNOWN status should be emitted when an exception is encountered",
+        )
+        assertNull(
+            actual = exceptionSlot.captured.status.cause,
+            message = "The source exception should not be sent to the consumer",
         )
         assertEquals(
-            expected = expectedException,
-            actual = exceptionSlot.captured.status.cause,
-            message = "The expected exception should be used as the cause by the captured error",
+            expected = ObjectStoreGatewayServer.DEFAULT_UNKNOWN_DESCRIPTION,
+            actual = exceptionSlot.captured.status.description,
+            message = "The expected description should be sent",
         )
     }
 
