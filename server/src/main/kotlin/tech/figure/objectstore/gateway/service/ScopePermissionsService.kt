@@ -41,7 +41,7 @@ class ScopePermissionsService(
         sourceDetails: String? = null,
     ): GrantResponse {
         return try {
-            val logPrefix = "[GATEWAY GRANT (${sourceDetails ?: ""})]:"
+            val logPrefix = "[GATEWAY GRANT ${if (sourceDetails != null) "($sourceDetails)" else ""}]:"
             val scopeResponse = scopeFetchService.fetchScope(
                 scopeAddress = scopeAddress,
                 includeSessions = true,
@@ -96,7 +96,7 @@ class ScopePermissionsService(
         grantId: String? = null,
         sourceDetails: String? = null,
     ): RevokeResponse = try {
-        val logPrefix = "[GATEWAY REVOKE (${sourceDetails ?: ""})]:"
+        val logPrefix = "[GATEWAY REVOKE ${if (sourceDetails != null) "($sourceDetails)" else ""}]:"
         val scopeResponse = scopeFetchService.fetchScope(scopeAddress = scopeAddress)
         // TODO: Add authz reverse lookup to attempt to find additional authorized addresses.  The scope's value owner
         // may have granted other addresses the required privileges that should allow this to proceed
