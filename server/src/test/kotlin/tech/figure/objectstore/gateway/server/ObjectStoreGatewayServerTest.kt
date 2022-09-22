@@ -18,9 +18,7 @@ import io.provenance.scope.encryption.ecies.ProvenanceKeyGenerator
 import io.provenance.scope.encryption.util.getAddress
 import io.provenance.scope.util.sha256String
 import io.provenance.scope.util.toByteString
-import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.deleteAll
-import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.junit.jupiter.api.BeforeEach
@@ -39,6 +37,7 @@ import tech.figure.objectstore.gateway.helpers.getValidRequest
 import tech.figure.objectstore.gateway.helpers.keyRef
 import tech.figure.objectstore.gateway.helpers.mockScopeResponse
 import tech.figure.objectstore.gateway.helpers.objectFromParts
+import tech.figure.objectstore.gateway.helpers.queryGrantCount
 import tech.figure.objectstore.gateway.model.ScopePermissionsTable
 import tech.figure.objectstore.gateway.repository.ScopePermissionsRepository
 import tech.figure.objectstore.gateway.service.ObjectService
@@ -421,14 +420,12 @@ class ObjectStoreGatewayServerTest {
         grantee: String = defaultGrantee,
         granter: String = defaultGranter,
         grantId: String? = null,
-    ): Long = transaction {
-        ScopePermissionsTable.select {
-            ScopePermissionsTable.scopeAddress.eq(scopeAddr)
-                .and { ScopePermissionsTable.granteeAddress eq grantee }
-                .and { ScopePermissionsTable.granterAddress eq granter }
-                .and { ScopePermissionsTable.grantId eq grantId }
-        }.count()
-    }
+    ): Long = queryGrantCount(
+        scopeAddr = scopeAddr,
+        grantee = grantee,
+        granter = granter,
+        grantId = grantId,
+    )
 
     /**
      * Observer mocks will freak out and throw an exception when any of their standard response functions are called.

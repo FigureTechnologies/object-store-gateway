@@ -87,9 +87,9 @@ class ObjectStoreGatewayServer(
         val grantResponse = scopePermissionsService.processAccessGrant(
             scopeAddress = request.scopeAddress,
             granteeAddress = request.granteeAddress,
-            grantSourceAddresses = listOf(requesterAddress),
+            grantSourceAddresses = setOf(requesterAddress),
             // The application's admin should be able to manually grant any permission that is desired
-            additionalAuthorizedAddresses = listOf(masterKey.publicKey.getAddress(mainNet = provenanceProperties.mainNet)),
+            additionalAuthorizedAddresses = setOf(masterKey.publicKey.getAddress(mainNet = provenanceProperties.mainNet)),
             grantId = grantId,
             sourceDetails = sourceDetails,
         )
@@ -126,8 +126,8 @@ class ObjectStoreGatewayServer(
         val revokeResponse = scopePermissionsService.processAccessRevoke(
             scopeAddress = request.scopeAddress,
             granteeAddress = request.granteeAddress,
-            revokeSourceAddresses = listOf(requesterAddress),
-            additionalAuthorizedAddresses = listOf(
+            revokeSourceAddresses = setOf(requesterAddress),
+            additionalAuthorizedAddresses = setOf(
                 // The grantee should be able to remove their own grants upon request
                 request.granteeAddress,
                 // The application's admin should be able to manually revoke any permission that is desired

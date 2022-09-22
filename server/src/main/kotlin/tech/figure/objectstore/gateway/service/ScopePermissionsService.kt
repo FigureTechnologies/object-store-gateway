@@ -16,15 +16,14 @@ class ScopePermissionsService(
     fun processAccessGrant(
         scopeAddress: String,
         granteeAddress: String,
-        grantSourceAddresses: List<String>,
-        additionalAuthorizedAddresses: List<String> = emptyList(),
+        grantSourceAddresses: Set<String>,
+        additionalAuthorizedAddresses: Set<String> = emptySet(),
         grantId: String? = null,
-        providedScope: ScopeResponse? = null,
         sourceDetails: String? = null,
     ): GrantResponse {
         return try {
             val logPrefix = "[GATEWAY GRANT (${sourceDetails ?: ""})]:"
-            val scopeResponse = providedScope ?: scopeFetchService.fetchScope(
+            val scopeResponse = scopeFetchService.fetchScope(
                 scopeAddress = scopeAddress,
                 includeSessions = true,
             )
@@ -52,19 +51,18 @@ class ScopePermissionsService(
     fun processAccessRevoke(
         scopeAddress: String,
         granteeAddress: String,
-        revokeSourceAddresses: List<String>,
-        additionalAuthorizedAddresses: List<String> = emptyList(),
+        revokeSourceAddresses: Set<String>,
+        additionalAuthorizedAddresses: Set<String> = emptySet(),
         grantId: String? = null,
-        providedScope: ScopeResponse? = null,
         sourceDetails: String? = null,
     ): RevokeResponse = try {
         val logPrefix = "[GATEWAY REVOKE (${sourceDetails ?: ""})]:"
-        val scopeResponse = providedScope ?: scopeFetchService.fetchScope(scopeAddress = scopeAddress)
+        val scopeResponse = scopeFetchService.fetchScope(scopeAddress = scopeAddress)
         // TODO: Add authz reverse lookup to attempt to find additional authorized addresses.  The scope's value owner
         // may have granted other addresses the required privileges that should allow this to proceed
         val authorizedAddresses = additionalAuthorizedAddresses + scopeResponse.scope.scope.valueOwnerAddress
         if (authorizedAddresses.none { it in revokeSourceAddresses }) {
-            RevokeResponse.Rejected("$logPrefix Skipping revoke.None of the authorized addresses $authorizedAddresses for this revoke were in the addresses that requested it $revokeSourceAddresses")
+            RevokeResponse.Rejected("$logPrefix Skipping revoke.  None of the authorized addresses $authorizedAddresses for this revoke were in the addresses that requested it $revokeSourceAddresses")
         } else {
             logger.info("$logPrefix Revoking grants from grantee [$granteeAddress] for scope [$scopeAddress]${if (grantId != null) " with grant id [$grantId]" else ""}")
             scopePermissionsRepository.revokeAccessPermission(

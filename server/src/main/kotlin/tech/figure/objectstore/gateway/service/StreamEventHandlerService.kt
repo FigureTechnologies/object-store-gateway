@@ -54,7 +54,7 @@ class StreamEventHandlerService(
                     revokeSourceAddresses = getSignerAddressesForTx(gatewayEvent.txHash),
                     // Include the target account as an account that can revoke permissions.  Any account should be able
                     // to revoke its own grants
-                    additionalAuthorizedAddresses = listOf(gatewayEvent.targetAccount),
+                    additionalAuthorizedAddresses = setOf(gatewayEvent.targetAccount),
                     grantId = gatewayEvent.accessGrantId,
                     sourceDetails = "source: $gatewayEvent",
                 ).also { revokeResponse ->
@@ -74,7 +74,7 @@ class StreamEventHandlerService(
      *
      * @param txHash The hashed output for the transaction that emitted the given event.
      */
-    private fun getSignerAddressesForTx(txHash: String): List<String> = pbClient
+    private fun getSignerAddressesForTx(txHash: String): Set<String> = pbClient
         .cosmosService
         .getTx(GetTxRequest.newBuilder().setHash(txHash).build())
         .tx
@@ -83,6 +83,7 @@ class StreamEventHandlerService(
         .map { signerInfo -> signerInfo.publicKey.unpack(PubKey::class.java).key.toByteArray() }
         .map(ECUtils::convertBytesToPublicKey)
         .map { publicKey -> publicKey.getAddress(provenanceProperties.mainNet) }
+        .toSet()
 
     /**
      * Handles a given asset classification smart contract event.  This is a legacy handling function and should be
@@ -115,7 +116,7 @@ class StreamEventHandlerService(
                 granteeAddress = event.verifierAddress.checkNotNull { "[ONBOARD ASSET | Tx: ${event.txHash}]: Expected the onboard asset event to include a verifier address" },
                 // The scope owner address is established in the contract by directly using the sender of the contract message,
                 // making this relatively safe.
-                grantSourceAddresses = listOfNotNull(event.scopeOwnerAddress),
+                grantSourceAddresses = setOfNotNull(event.scopeOwnerAddress),
                 sourceDetails = "Asset Classification Event from tx [${event.txHash}]",
             )
             else -> throw IllegalStateException("After all event checks, an unexpected event was attempted for processing. Tx hash: [${event.txHash}], event type: [${event.eventType}]")
