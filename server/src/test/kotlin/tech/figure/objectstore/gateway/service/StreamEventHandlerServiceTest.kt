@@ -34,7 +34,6 @@ import java.time.OffsetDateTime
 import java.util.Base64
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 import kotlin.test.fail
 
 @SpringBootTest
@@ -288,84 +287,6 @@ class StreamEventHandlerServiceTest {
     }
 
     @Test
-    fun `StreamEventHandlerService removes any and disregards grant id when revoke expression does not include it`() {
-        setUp()
-
-        val firstGrantId = "the best grant ever"
-        val secondGrantId = "the betterest grant ever"
-        val thirdGrantId = "I don't even have a fake adjective for this one"
-
-        submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT, grantId = firstGrantId)
-        submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT, grantId = secondGrantId)
-        submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT, grantId = thirdGrantId)
-        submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT, grantId = null)
-
-        assertScopePermissionExists(grantId = firstGrantId)
-        assertScopePermissionExists(grantId = secondGrantId)
-        assertScopePermissionExists(grantId = thirdGrantId)
-        assertScopePermissionExists(grantId = null)
-
-        submitGatewayEvent(GatewayExpectedEventType.ACCESS_REVOKE)
-
-        assertScopePermissionDoesNotExist(grantId = firstGrantId, messagePrefix = "The first grant should be removed after an access revoke does not supply a grant id")
-        assertScopePermissionDoesNotExist(grantId = secondGrantId, messagePrefix = "The second grant should be removed after an access revoke does not supply a grant id")
-        assertScopePermissionDoesNotExist(grantId = thirdGrantId, messagePrefix = "The third grant should be removed after an access revoke does not supply a grant id")
-        assertScopePermissionDoesNotExist(grantId = null, messagePrefix = "The null id grant should be removed after an access revoke does not supply a grant id")
-
-        assertEquals(
-            expected = emptyList(),
-            actual = scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address),
-            message = "All grants should be removed when the revocation does not supply a targeted grant id",
-        )
-    }
-
-    @Test
-    fun `StreamEventHandlerService removes grant id specifically upon request`() {
-        setUp()
-
-        val firstGrantId = "first-grant"
-        val secondGrantId = "second-grant"
-
-        submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT, grantId = firstGrantId)
-        submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT, grantId = secondGrantId)
-        submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
-
-        assertScopePermissionExists(grantId = firstGrantId)
-        assertScopePermissionExists(grantId = secondGrantId)
-        assertScopePermissionExists(grantId = null)
-
-        submitGatewayEvent(GatewayExpectedEventType.ACCESS_REVOKE, grantId = "other grant id")
-
-        assertScopePermissionExists(grantId = firstGrantId, messagePrefix = "First grant should still exist after targeting a nonexistent grant id")
-        assertScopePermissionExists(grantId = secondGrantId, messagePrefix = "Second grant should still exist after targeting a nonexistent grant id")
-        assertScopePermissionExists(grantId = null, messagePrefix = "Null id grant should still exist after targeting a nonexistent grant id")
-
-        submitGatewayEvent(GatewayExpectedEventType.ACCESS_REVOKE, grantId = firstGrantId)
-
-        assertScopePermissionDoesNotExist(grantId = firstGrantId, messagePrefix = "First grant should be deleted after an access revoke requested it")
-        assertScopePermissionExists(grantId = secondGrantId, messagePrefix = "Second grant should still exist after only deleting the first grant id's record")
-        assertScopePermissionExists(grantId = null, messagePrefix = "Null id grant should still exist after only deleting the first grant id's record")
-
-        submitGatewayEvent(GatewayExpectedEventType.ACCESS_REVOKE, grantId = secondGrantId)
-
-        assertScopePermissionDoesNotExist(grantId = firstGrantId, messagePrefix = "First grant should remain deleted after deleting the second grant")
-        assertScopePermissionDoesNotExist(grantId = secondGrantId, messagePrefix = "Second grant should be deleted after an access revoke requested it")
-        assertScopePermissionExists(grantId = null, messagePrefix = "Null id grant should still exist after only deleting the second grant id's record")
-
-        submitGatewayEvent(GatewayExpectedEventType.ACCESS_REVOKE)
-
-        assertScopePermissionDoesNotExist(grantId = firstGrantId, messagePrefix = "First grant should remain deleted after removing grants with a null grant id")
-        assertScopePermissionDoesNotExist(grantId = secondGrantId, messagePrefix = "Second grant should remain deleted after removing grants with a null grant id")
-        assertScopePermissionDoesNotExist(grantId = null, messagePrefix = "Null id grant should be deleted after an access revoke requested all grants to be deleted")
-
-        assertEquals(
-            expected = emptyList(),
-            actual = scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address),
-            message = "After all grants have been deleted, no granter addresses should be available to the grantee",
-        )
-    }
-
-    @Test
     fun `StreamEventHandlerService gracefully handles unrelated access revoke`() {
         setUp()
 
@@ -445,24 +366,6 @@ class StreamEventHandlerServiceTest {
             message = "${messagePrefix ?: "Scope permission does not exist"}: Expected scope permission with scope address [$targetScopeAddress], granter [$granterAddress], grantee [$granteeAddress], and grant ID [$grantId] to exist",
         )
         scopePermissionOrNull
-    }
-
-    private fun assertScopePermissionDoesNotExist(
-        targetScopeAddress: String = scopeAddress,
-        granterAddress: String = priorityOwnerAddress,
-        granteeAddress: String = grantee.bech32Address,
-        grantId: String? = null,
-        messagePrefix: String? = null,
-    ) {
-        assertNull(
-            actual = findScopePermissionOrNull(
-                scopeAddress = targetScopeAddress,
-                granterAddress = granterAddress,
-                granteeAddress = granteeAddress,
-                grantId = grantId,
-            ),
-            message = "${messagePrefix ?: "Scope permission should not exist"}: Found scope permission with scope address [$targetScopeAddress], granter [$granterAddress], grantee [$granteeAddress], and grant ID [$grantId]",
-        )
     }
 
     private fun findScopePermissionOrNull(

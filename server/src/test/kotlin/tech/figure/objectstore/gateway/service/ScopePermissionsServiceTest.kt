@@ -6,15 +6,22 @@ import io.provenance.hdwallet.wallet.Account
 import io.provenance.metadata.v1.PartyType
 import io.provenance.metadata.v1.ScopeResponse
 import io.provenance.scope.util.MetadataAddress
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.and
+import org.jetbrains.exposed.sql.transactions.transaction
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.SpringBootTest
 import tech.figure.objectstore.gateway.helpers.bech32Address
 import tech.figure.objectstore.gateway.helpers.genRandomAccount
 import tech.figure.objectstore.gateway.helpers.mockScopeResponse
 import tech.figure.objectstore.gateway.helpers.queryGrantCount
+import tech.figure.objectstore.gateway.model.ScopePermission
+import tech.figure.objectstore.gateway.model.ScopePermissionsTable
 import tech.figure.objectstore.gateway.repository.ScopePermissionsRepository
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @SpringBootTest
@@ -59,11 +66,7 @@ class ScopePermissionsServiceTest {
     fun `processAccessGrant rejects request that has no registered owner`() {
         // Establish the registered accounts as a set of a random address unrelated to anything else
         setUp(accountAddresses = setOf(genRandomAccount().bech32Address))
-        val response = service.processAccessGrant(
-            scopeAddress = scopeAddress,
-            granteeAddress = defaultGrantee,
-            grantSourceAddresses = setOf(scopeOwner.bech32Address),
-        )
+        val response = doAccessGrant()
         assertTrue(
             actual = response is GrantResponse.Rejected,
             message = "The response should be a rejected response, but got type: ${response::class.qualifiedName}",
@@ -77,11 +80,7 @@ class ScopePermissionsServiceTest {
     @Test
     fun `processAccessGrant rejects request from unauthorized source`() {
         setUp()
-        val response = service.processAccessGrant(
-            scopeAddress = scopeAddress,
-            granteeAddress = defaultGrantee,
-            grantSourceAddresses = setOf(genRandomAccount().bech32Address),
-        )
+        val response = doAccessGrant(sources = setOf(genRandomAccount().bech32Address))
         assertTrue(
             response is GrantResponse.Rejected,
             message = "The response should be a rejected response, but got type: ${response::class.qualifiedName}",
@@ -97,11 +96,7 @@ class ScopePermissionsServiceTest {
         setUp()
         val expectedException = IllegalStateException("Oh, no! A thing happened!")
         every { scopeFetchService.fetchScope(any(), any(), any()) } throws expectedException
-        val response = service.processAccessGrant(
-            scopeAddress = scopeAddress,
-            granteeAddress = defaultGrantee,
-            grantSourceAddresses = setOf(scopeOwner.bech32Address),
-        )
+        val response = doAccessGrant()
         assertTrue(
             actual = response is GrantResponse.Error,
             message = "The response should be an error response, but got type: ${response::class.qualifiedName}",
@@ -116,11 +111,7 @@ class ScopePermissionsServiceTest {
     @Test
     fun `processAccessGrant accepts request from scope owner`() {
         setUp()
-        val response = service.processAccessGrant(
-            scopeAddress = scopeAddress,
-            granteeAddress = defaultGrantee,
-            grantSourceAddresses = setOf(scopeOwner.bech32Address),
-        )
+        val response = doAccessGrant()
         assertGrantResponseAccepted(response)
     }
 
@@ -128,11 +119,9 @@ class ScopePermissionsServiceTest {
     fun `processAccessGrant accepts request from additional authorized address`() {
         setUp()
         val authorizedAccount = genRandomAccount()
-        val response = service.processAccessGrant(
-            scopeAddress = scopeAddress,
-            granteeAddress = defaultGrantee,
-            grantSourceAddresses = setOf(authorizedAccount.bech32Address),
-            additionalAuthorizedAddresses = setOf(authorizedAccount.bech32Address),
+        val response = doAccessGrant(
+            sources = setOf(authorizedAccount.bech32Address),
+            additionalAddresses = setOf(authorizedAccount.bech32Address),
         )
         assertGrantResponseAccepted(response)
     }
@@ -140,23 +129,14 @@ class ScopePermissionsServiceTest {
     @Test
     fun `processAccessGrant accepts request with grant id and creates proper record`() {
         setUp()
-        val response = service.processAccessGrant(
-            scopeAddress = scopeAddress,
-            granteeAddress = defaultGrantee,
-            grantSourceAddresses = setOf(scopeOwner.bech32Address),
-            grantId = "my-grant-id",
-        )
+        val response = doAccessGrant(grantId = "my-grant-id")
         assertGrantResponseAccepted(response = response, expectedGrantId = "my-grant-id")
     }
 
     @Test
     fun `processAccessRevoke rejects request from unauthorized source`() {
         setUp()
-        val response = service.processAccessRevoke(
-            scopeAddress = scopeAddress,
-            granteeAddress = defaultGrantee,
-            revokeSourceAddresses = setOf(genRandomAccount().bech32Address),
-        )
+        val response = doAccessRevoke(sources = setOf(genRandomAccount().bech32Address))
         assertTrue(
             actual = response is RevokeResponse.Rejected,
             message = "The response should be a rejected response, but got type: ${response::class.qualifiedName}",
@@ -172,11 +152,7 @@ class ScopePermissionsServiceTest {
         setUp()
         val expectedException = IllegalArgumentException("Stop arguing with me")
         every { scopeFetchService.fetchScope(any(), any(), any()) } throws expectedException
-        val response = service.processAccessRevoke(
-            scopeAddress = scopeAddress,
-            granteeAddress = defaultGrantee,
-            revokeSourceAddresses = setOf(scopeOwner.bech32Address),
-        )
+        val response = doAccessRevoke()
         assertTrue(
             actual = response is RevokeResponse.Error,
             message = "The response should be an error response, but got type: ${response::class.qualifiedName}",
@@ -191,17 +167,136 @@ class ScopePermissionsServiceTest {
     @Test
     fun `processAccessRevoke accepts revoke from scope owner`() {
         setUp()
-        service.processAccessGrant(
-            scopeAddress = scopeAddress,
-            granteeAddress = defaultGrantee,
-            grantSourceAddresses = setOf(scopeOwner.bech32Address),
-        ).also(::assertGrantResponseAccepted)
-        service.processAccessRevoke(
-            scopeAddress = scopeAddress,
-            granteeAddress = defaultGrantee,
-            revokeSourceAddresses = setOf(scopeOwner.bech32Address),
+        doAccessGrant().also(::assertGrantResponseAccepted)
+        doAccessRevoke().also(::assertRevokeResponseAccepted)
+    }
+
+    @Test
+    fun `processAccessRevoke accepts revoke from additional authorized address`() {
+        setUp()
+        doAccessGrant().also(::assertGrantResponseAccepted)
+        val authorizedAccount = genRandomAccount()
+        doAccessRevoke(
+            sources = setOf(authorizedAccount.bech32Address),
+            additionalAddresses = setOf(authorizedAccount.bech32Address),
         ).also(::assertRevokeResponseAccepted)
     }
+
+    @Test
+    fun `processAccessRevoke removes any and disregards grant id when revoke expression does not include it`() {
+        setUp()
+
+        val firstGrantId = "the best grant ever"
+        val secondGrantId = "the betterest grant ever"
+        val thirdGrantId = "I don't even have a fake adjective for this one"
+
+        doAccessGrant(grantId = firstGrantId).also { assertGrantResponseAccepted(it, expectedGrantId = firstGrantId) }
+        doAccessGrant(grantId = secondGrantId).also { assertGrantResponseAccepted(it, expectedGrantId = secondGrantId) }
+        doAccessGrant(grantId = thirdGrantId).also { assertGrantResponseAccepted(it, expectedGrantId = thirdGrantId) }
+        doAccessGrant().also(::assertGrantResponseAccepted)
+
+        doAccessRevoke().also { revokeResponse ->
+            assertRevokeResponseAccepted(
+                response = revokeResponse,
+                expectedRevokedGrantsCount = 4,
+                expectedRemainingGrantsCount = 0,
+            )
+        }
+    }
+
+    @Test
+    fun `StreamEventHandlerService removes grant id specifically upon request`() {
+        setUp()
+
+        val firstGrantId = "first-grant"
+        val secondGrantId = "second-grant"
+
+        doAccessGrant(grantId = firstGrantId).also { assertGrantResponseAccepted(it, expectedGrantId = firstGrantId) }
+        doAccessGrant(grantId = secondGrantId).also { assertGrantResponseAccepted(it, expectedGrantId = secondGrantId) }
+        doAccessGrant().also(::assertGrantResponseAccepted)
+
+        doAccessRevoke(grantId = "other grant id").also {
+            assertRevokeResponseAccepted(
+                response = it,
+                expectedRevokedGrantsCount = 0,
+                expectedRemainingGrantsCount = 3,
+            )
+        }
+
+        assertScopePermissionExists(grantId = firstGrantId, messagePrefix = "First grant should still exist after targeting a nonexistent grant id")
+        assertScopePermissionExists(grantId = secondGrantId, messagePrefix = "Second grant should still exist after targeting a nonexistent grant id")
+        assertScopePermissionExists(grantId = null, messagePrefix = "Null id grant should still exist after targeting a nonexistent grant id")
+
+        doAccessRevoke(grantId = firstGrantId).also {
+            assertRevokeResponseAccepted(
+                response = it,
+                expectedRevokedGrantsCount = 1,
+                expectedRemainingGrantsCount = 2,
+            )
+        }
+
+        assertScopePermissionDoesNotExist(grantId = firstGrantId, messagePrefix = "First grant should be deleted after an access revoke requested it")
+        assertScopePermissionExists(grantId = secondGrantId, messagePrefix = "Second grant should still exist after only deleting the first grant id's record")
+        assertScopePermissionExists(grantId = null, messagePrefix = "Null id grant should still exist after only deleting the first grant id's record")
+
+        doAccessRevoke(grantId = secondGrantId).also {
+            assertRevokeResponseAccepted(
+                response = it,
+                expectedRevokedGrantsCount = 1,
+                expectedRemainingGrantsCount = 1,
+            )
+        }
+
+        assertScopePermissionDoesNotExist(grantId = firstGrantId, messagePrefix = "First grant should remain deleted after deleting the second grant")
+        assertScopePermissionDoesNotExist(grantId = secondGrantId, messagePrefix = "Second grant should be deleted after an access revoke requested it")
+        assertScopePermissionExists(grantId = null, messagePrefix = "Null id grant should still exist after only deleting the second grant id's record")
+
+        doAccessRevoke(grantId = null).also {
+            assertRevokeResponseAccepted(
+                response = it,
+                expectedRevokedGrantsCount = 1,
+                expectedRemainingGrantsCount = 0,
+            )
+        }
+
+        assertScopePermissionDoesNotExist(grantId = firstGrantId, messagePrefix = "First grant should remain deleted after removing grants with a null grant id")
+        assertScopePermissionDoesNotExist(grantId = secondGrantId, messagePrefix = "Second grant should remain deleted after removing grants with a null grant id")
+        assertScopePermissionDoesNotExist(grantId = null, messagePrefix = "Null id grant should be deleted after an access revoke requested all grants to be deleted")
+
+        assertEquals(
+            expected = emptyList(),
+            actual = scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, defaultGrantee),
+            message = "After all grants have been deleted, no granter addresses should be available to the grantee",
+        )
+    }
+
+    private fun doAccessGrant(
+        scopeAddr: String = scopeAddress,
+        grantee: String = defaultGrantee,
+        sources: Set<String> = setOf(scopeOwner.bech32Address),
+        additionalAddresses: Set<String> = emptySet(),
+        grantId: String? = null,
+    ): GrantResponse = service.processAccessGrant(
+        scopeAddress = scopeAddr,
+        granteeAddress = grantee,
+        grantSourceAddresses = sources,
+        additionalAuthorizedAddresses = additionalAddresses,
+        grantId = grantId,
+    )
+
+    private fun doAccessRevoke(
+        scopeAddr: String = scopeAddress,
+        grantee: String = defaultGrantee,
+        sources: Set<String> = setOf(scopeOwner.bech32Address),
+        additionalAddresses: Set<String> = emptySet(),
+        grantId: String? = null,
+    ): RevokeResponse = service.processAccessRevoke(
+        scopeAddress = scopeAddr,
+        granteeAddress = grantee,
+        revokeSourceAddresses = sources,
+        additionalAuthorizedAddresses = additionalAddresses,
+        grantId = grantId,
+    )
 
     private fun assertGrantResponseAccepted(
         response: GrantResponse,
@@ -235,7 +330,9 @@ class ScopePermissionsServiceTest {
         response: RevokeResponse,
         grantScopeAddress: String = scopeAddress,
         granteeAddress: String = defaultGrantee,
+        grantId: String? = null,
         expectedRevokedGrantsCount: Int = 1,
+        expectedRemainingGrantsCount: Int = 0
     ) {
         assertTrue(
             actual = response is RevokeResponse.Accepted,
@@ -247,9 +344,9 @@ class ScopePermissionsServiceTest {
             message = "Expected a different number of grants to be revoked",
         )
         assertEquals(
-            expected = 0,
-            actual = queryGrantCount(scopeAddr = grantScopeAddress, grantee = granteeAddress),
-            message = "Expected no grants with the specified scope address to remain",
+            expected = expectedRemainingGrantsCount.toLong(),
+            actual = queryGrantCount(scopeAddr = grantScopeAddress, grantee = granteeAddress, grantId = grantId),
+            message = "Expected the correct number of grants to remain",
         )
     }
 
@@ -264,4 +361,55 @@ class ScopePermissionsServiceTest {
         granter = granter,
         grantId = grantId,
     )
+
+    private fun assertScopePermissionExists(
+        targetScopeAddress: String = scopeAddress,
+        granterAddress: String = ownerGranter,
+        granteeAddress: String = defaultGrantee,
+        grantId: String? = null,
+        messagePrefix: String? = null,
+    ): ScopePermission = findScopePermissionOrNull(
+        scopeAddress = targetScopeAddress,
+        granterAddress = granterAddress,
+        granteeAddress = granteeAddress,
+        grantId = grantId,
+    ).let { scopePermissionOrNull ->
+        assertNotNull(
+            actual = scopePermissionOrNull,
+            message = "${messagePrefix ?: "Scope permission does not exist"}: Expected scope permission with scope address [$targetScopeAddress], granter [$granterAddress], grantee [$granteeAddress], and grant ID [$grantId] to exist",
+        )
+        scopePermissionOrNull
+    }
+
+    private fun assertScopePermissionDoesNotExist(
+        targetScopeAddress: String = scopeAddress,
+        granterAddress: String = ownerGranter,
+        granteeAddress: String = defaultGrantee,
+        grantId: String? = null,
+        messagePrefix: String? = null,
+    ) {
+        assertNull(
+            actual = findScopePermissionOrNull(
+                scopeAddress = targetScopeAddress,
+                granterAddress = granterAddress,
+                granteeAddress = granteeAddress,
+                grantId = grantId,
+            ),
+            message = "${messagePrefix ?: "Scope permission should not exist"}: Found scope permission with scope address [$targetScopeAddress], granter [$granterAddress], grantee [$granteeAddress], and grant ID [$grantId]",
+        )
+    }
+
+    private fun findScopePermissionOrNull(
+        scopeAddress: String,
+        granterAddress: String,
+        granteeAddress: String,
+        grantId: String?,
+    ): ScopePermission? = transaction {
+        ScopePermission.find {
+            ScopePermissionsTable.scopeAddress.eq(scopeAddress)
+                .and { ScopePermissionsTable.granterAddress eq granterAddress }
+                .and { ScopePermissionsTable.granteeAddress eq granteeAddress }
+                .and { ScopePermissionsTable.grantId eq grantId }
+        }.singleOrNull()
+    }
 }

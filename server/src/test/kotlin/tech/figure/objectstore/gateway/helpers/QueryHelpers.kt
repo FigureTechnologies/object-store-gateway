@@ -22,9 +22,17 @@ fun queryGrantCount(
 fun queryGrantCount(
     scopeAddr: String,
     grantee: String,
+    grantId: String? = null,
 ): Long = transaction {
     ScopePermissionsTable.select {
         ScopePermissionsTable.scopeAddress.eq(scopeAddr)
             .and { ScopePermissionsTable.granteeAddress eq grantee }
+            .let { query ->
+                if (grantId != null) {
+                    query.and { ScopePermissionsTable.grantId.eq(grantId) }
+                } else {
+                    query
+                }
+            }
     }.count()
 }
