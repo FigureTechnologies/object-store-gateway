@@ -81,7 +81,7 @@ class ObjectStoreGatewayServer(
         request: GatewayOuterClass.GrantScopePermissionRequest,
         responseObserver: StreamObserver<GrantScopePermissionResponse>,
     ) {
-        val requesterAddress = publicKey().getAddress(mainNet = provenanceProperties.mainNet)
+        val requesterAddress = address()
         val grantId = request.grantId.takeIf { it.isNotBlank() }
         val sourceDetails = "Manual grant request by $requesterAddress for scope ${request.scopeAddress}, grantee ${request.granteeAddress}${if (grantId != null) ", grantId $grantId" else ""}"
         val grantResponse = scopePermissionsService.processAccessGrant(
@@ -120,7 +120,7 @@ class ObjectStoreGatewayServer(
         request: GatewayOuterClass.RevokeScopePermissionRequest,
         responseObserver: StreamObserver<RevokeScopePermissionResponse>,
     ) {
-        val requesterAddress = publicKey().getAddress(mainNet = provenanceProperties.mainNet)
+        val requesterAddress = address()
         val grantId = request.grantId.takeIf { it.isNotBlank() }
         val sourceDetails = "Main revoke request by $requesterAddress for scope ${request.scopeAddress}, grantee ${request.granteeAddress}${if (grantId != null) ", grantId $grantId" else ""}"
         val revokeResponse = scopePermissionsService.processAccessRevoke(
