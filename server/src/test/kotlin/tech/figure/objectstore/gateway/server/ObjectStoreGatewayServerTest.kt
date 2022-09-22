@@ -18,7 +18,9 @@ import io.provenance.scope.encryption.ecies.ProvenanceKeyGenerator
 import io.provenance.scope.encryption.util.getAddress
 import io.provenance.scope.util.sha256String
 import io.provenance.scope.util.toByteString
+import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.deleteAll
+import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.junit.jupiter.api.BeforeEach
@@ -27,6 +29,8 @@ import org.springframework.boot.test.context.SpringBootTest
 import tech.figure.objectstore.gateway.GatewayOuterClass
 import tech.figure.objectstore.gateway.GatewayOuterClass.GrantScopePermissionRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.GrantScopePermissionResponse
+import tech.figure.objectstore.gateway.GatewayOuterClass.RevokeScopePermissionRequest
+import tech.figure.objectstore.gateway.GatewayOuterClass.RevokeScopePermissionResponse
 import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
 import tech.figure.objectstore.gateway.helpers.genRandomAccount
 import tech.figure.objectstore.gateway.helpers.getValidFetchObjectByHashRequest
@@ -198,59 +202,23 @@ class ObjectStoreGatewayServerTest {
     }
 
     @Test
-    fun `grantScopePermission should respond with the granter address used on a successful grant with authorized granter`() {
-        setUpBaseServices()
-        setUpScopePermissionValues()
-        val responseObserver = mockkObserver<GrantScopePermissionResponse>()
-        val request = getDefaultPermissionGrant()
-        server.grantScopePermission(request = request, responseObserver = responseObserver)
-        verify(inverse = true) { responseObserver.onError(any()) }
-        verifyAll {
-            responseObserver.onNext(
-                GrantScopePermissionResponse.newBuilder().also { response ->
-                    response.request = request
-                    response.granterAddress = defaultGranter
-                    response.grantAccepted = true
-                }.build()
-            )
-            responseObserver.onCompleted()
-        }
-        assertEquals(
-            expected = listOf(defaultGranter),
-            actual = scopePermissionsRepository.getAccessGranterAddresses(
-                scopeAddress = scopeAddress,
-                granteeAddress = defaultGrantee,
-            ),
-            message = "The access grant should be added to the permissions table",
-        )
+    fun `grantScopePermission should respond with a success to an authorized caller no grant id`() {
+        testGrantScopePermission(contextKeyPair = keyPair, grantId = null)
     }
 
     @Test
-    fun `grantScopePermission should respond with the granter address used on a successful grant with the master key`() {
-        setUpBaseServices(contextKeyPair = masterAccount.keyPair.toJavaECKeyPair())
-        setUpScopePermissionValues()
-        val responseObserver = mockkObserver<GrantScopePermissionResponse>()
-        val request = getDefaultPermissionGrant()
-        server.grantScopePermission(request = request, responseObserver = responseObserver)
-        verify(inverse = true) { responseObserver.onError(any()) }
-        verifyAll {
-            responseObserver.onNext(
-                GrantScopePermissionResponse.newBuilder().also { response ->
-                    response.request = request
-                    response.granterAddress = defaultGranter
-                    response.grantAccepted = true
-                }.build()
-            )
-            responseObserver.onCompleted()
-        }
-        assertEquals(
-            expected = listOf(defaultGranter),
-            actual = scopePermissionsRepository.getAccessGranterAddresses(
-                scopeAddress = scopeAddress,
-                granteeAddress = defaultGrantee,
-            ),
-            message = "The access grant should be added to the permissions table",
-        )
+    fun `grantScopePermission should respond with a success to an authorized caller with grant id`() {
+        testGrantScopePermission(contextKeyPair = keyPair, grantId = "some-grant-yolo")
+    }
+
+    @Test
+    fun `grantScopePermission should respond with a success to the master key no grant id`() {
+        testGrantScopePermission(contextKeyPair = masterAccount.keyPair.toJavaECKeyPair(), grantId = null)
+    }
+
+    @Test
+    fun `grantScopePermission should respond with a success to the master key with grant id`() {
+        testGrantScopePermission(contextKeyPair = masterAccount.keyPair.toJavaECKeyPair(), grantId = "MASTER GRANT SHELLYEAH")
     }
 
     @Test
@@ -259,7 +227,7 @@ class ObjectStoreGatewayServerTest {
         setUpBaseServices(contextKeyPair = genRandomAccount().keyPair.toJavaECKeyPair())
         setUpScopePermissionValues()
         val responseObserver = mockkObserver<GrantScopePermissionResponse>()
-        val request = getDefaultPermissionGrant()
+        val request = getPermissionGrant()
         server.grantScopePermission(request = request, responseObserver = responseObserver)
         verify(inverse = true) { responseObserver.onError(any()) }
         verifyAll {
@@ -287,7 +255,7 @@ class ObjectStoreGatewayServerTest {
         val responseObserver = mockkObserver<GrantScopePermissionResponse>()
         val exceptionSlot = slot<StatusRuntimeException>()
         every { responseObserver.onError(capture(exceptionSlot)) } returns Unit
-        server.grantScopePermission(request = getDefaultPermissionGrant(), responseObserver = responseObserver)
+        server.grantScopePermission(request = getPermissionGrant(), responseObserver = responseObserver)
         verifyAll(inverse = true) {
             responseObserver.onNext(any())
             responseObserver.onCompleted()
@@ -304,7 +272,133 @@ class ObjectStoreGatewayServerTest {
         )
     }
 
-    private fun getDefaultPermissionGrant(
+    @Test
+    fun `revokeScopePermission should respond with a success to an authorized caller no grant id`() {
+        testRevokeScopePermission(contextKeyPair = keyPair, grantId = null)
+    }
+
+    @Test
+    fun `revokeScopePermission should respond with a success to an authorized caller with grant id`() {
+        testRevokeScopePermission(contextKeyPair = keyPair, grantId = "my-best-grant-ever")
+    }
+
+    @Test
+    fun `revokeScopePermission should respond with a success to the master key no grant id`() {
+        testRevokeScopePermission(contextKeyPair = masterAccount.keyPair.toJavaECKeyPair(), grantId = null)
+    }
+
+    @Test
+    fun `revokeScopePermission should respond with a success to the master key with grant id`() {
+        testRevokeScopePermission(contextKeyPair = masterAccount.keyPair.toJavaECKeyPair(), grantId = "THE MASTER GRANT")
+    }
+
+    @Test
+    fun `revokeScopePermission should reject requests that are not authorized`() {
+        // Use some random account as the requesting account to verify that the requester has to be someone relevant
+        setUpBaseServices(contextKeyPair = genRandomAccount().keyPair.toJavaECKeyPair())
+        setUpScopePermissionValues()
+        val responseObserver = mockkObserver<RevokeScopePermissionResponse>()
+        val request = getPermissionRevoke()
+        server.revokeScopePermission(request = request, responseObserver = responseObserver)
+        verify(inverse = true) { responseObserver.onError(any()) }
+        verifyAll {
+            responseObserver.onNext(
+                RevokeScopePermissionResponse.newBuilder().also { response ->
+                    response.request = request
+                    response.revokeAccepted = false
+                }.build()
+            )
+            responseObserver.onCompleted()
+        }
+    }
+
+    @Test
+    fun `revokeScopePermission should return expected unknown response on exception`() {
+        setUpBaseServices()
+        // Setup scope fetch service to freak out, simulating a provenance communication error
+        val expectedException = IllegalArgumentException("That ol' blockchain is givin' us trouble")
+        every { scopeFetchService.fetchScope(any(), any(), any()) } throws expectedException
+        val responseObserver = mockkObserver<RevokeScopePermissionResponse>()
+        val exceptionSlot = slot<StatusRuntimeException>()
+        every { responseObserver.onError(capture(exceptionSlot)) } returns Unit
+        server.revokeScopePermission(request = getPermissionRevoke(), responseObserver = responseObserver)
+        verifyAll(inverse = true) {
+            responseObserver.onNext(any())
+            responseObserver.onCompleted()
+        }
+        assertEquals(
+            expected = Status.UNKNOWN.code,
+            actual = exceptionSlot.captured.status.code,
+            message = "The UNKNOWN status shoudl be emitted when an exception is encountered",
+        )
+        assertEquals(
+            expected = expectedException,
+            actual = exceptionSlot.captured.status.cause,
+            message = "The expected exception should be used as the cause by the captured error",
+        )
+    }
+
+    private fun testGrantScopePermission(
+        contextKeyPair: KeyPair,
+        grantId: String?,
+    ) {
+        setUpBaseServices(contextKeyPair = contextKeyPair)
+        setUpScopePermissionValues()
+        val responseObserver = mockkObserver<GrantScopePermissionResponse>()
+        val request = getPermissionGrant(grantId = grantId)
+        server.grantScopePermission(request = request, responseObserver = responseObserver)
+        verify(inverse = true) { responseObserver.onError(any()) }
+        verifyAll {
+            responseObserver.onNext(
+                GrantScopePermissionResponse.newBuilder().also { response ->
+                    response.request = request
+                    response.granterAddress = defaultGranter
+                    response.grantAccepted = true
+                }.build()
+            )
+            responseObserver.onCompleted()
+        }
+        assertEquals(
+            expected = 1,
+            actual = getGrantCount(grantId = grantId),
+            message = "A record with the provided specifications should be created by the request",
+        )
+    }
+
+    private fun testRevokeScopePermission(
+        contextKeyPair: KeyPair,
+        grantId: String?,
+    ) {
+        setUpBaseServices(contextKeyPair = contextKeyPair)
+        setUpScopePermissionValues()
+        server.grantScopePermission(request = getPermissionGrant(grantId = grantId), responseObserver = mockkObserver())
+        assertEquals(
+            expected = 1,
+            actual = getGrantCount(grantId = grantId),
+            message = "A record with the provided specifications should be created by the request",
+        )
+        val responseObserver = mockkObserver<RevokeScopePermissionResponse>()
+        val request = getPermissionRevoke(grantId = grantId)
+        server.revokeScopePermission(request = request, responseObserver = responseObserver)
+        verify(inverse = true) { responseObserver.onError(any()) }
+        verifyAll {
+            responseObserver.onNext(
+                RevokeScopePermissionResponse.newBuilder().also { response ->
+                    response.request = request
+                    response.revokedGrantsCount = 1
+                    response.revokeAccepted = true
+                }.build()
+            )
+            responseObserver.onCompleted()
+        }
+        assertEquals(
+            expected = 0,
+            actual = getGrantCount(grantId = grantId),
+            message = "The record should be removed after successfully processing a revoke",
+        )
+    }
+
+    private fun getPermissionGrant(
         grantee: String = defaultGrantee,
         grantId: String? = null
     ): GrantScopePermissionRequest = GrantScopePermissionRequest.newBuilder().also { reqBuilder ->
@@ -312,6 +406,29 @@ class ObjectStoreGatewayServerTest {
         reqBuilder.granteeAddress = grantee
         grantId?.also { reqBuilder.grantId = it }
     }.build()
+
+    private fun getPermissionRevoke(
+        grantee: String = defaultGrantee,
+        grantId: String? = null,
+    ): RevokeScopePermissionRequest = RevokeScopePermissionRequest.newBuilder().also { reqBuilder ->
+        reqBuilder.scopeAddress = scopeAddress
+        reqBuilder.granteeAddress = grantee
+        grantId?.also { reqBuilder.grantId = it }
+    }.build()
+
+    private fun getGrantCount(
+        scopeAddr: String = scopeAddress,
+        grantee: String = defaultGrantee,
+        granter: String = defaultGranter,
+        grantId: String? = null,
+    ): Long = transaction {
+        ScopePermissionsTable.select {
+            ScopePermissionsTable.scopeAddress.eq(scopeAddr)
+                .and { ScopePermissionsTable.granteeAddress eq grantee }
+                .and { ScopePermissionsTable.granterAddress eq granter }
+                .and { ScopePermissionsTable.grantId eq grantId }
+        }.count()
+    }
 
     /**
      * Observer mocks will freak out and throw an exception when any of their standard response functions are called.
