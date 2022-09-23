@@ -1,9 +1,12 @@
 package tech.figure.objectstore.gateway.server
 
 import com.google.protobuf.Message
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import io.grpc.stub.StreamObserver
 import io.provenance.scope.encryption.model.KeyRef
 import io.provenance.scope.encryption.util.getAddress
+import mu.KLogging
 import org.lognet.springboot.grpc.GRpcService
 import tech.figure.objectstore.gateway.address
 import tech.figure.objectstore.gateway.admin.Admin.FetchDataStorageAccountRequest
@@ -16,6 +19,8 @@ import tech.figure.objectstore.gateway.exception.AccessDeniedException
 import tech.figure.objectstore.gateway.exception.NotFoundException
 import tech.figure.objectstore.gateway.repository.DataStorageAccountsRepository
 import tech.figure.objectstore.gateway.server.interceptor.JwtServerInterceptor
+import kotlin.Result.Companion.failure
+import kotlin.Result.Companion.success
 
 @GRpcService(interceptors = [JwtServerInterceptor::class])
 class ObjectStoreGatewayAdminServer(
@@ -23,54 +28,60 @@ class ObjectStoreGatewayAdminServer(
     private val masterKey: KeyRef,
     private val provenanceProperties: ProvenanceProperties,
 ) : GatewayAdminImplBase() {
+    private companion object : KLogging()
+
     override fun putDataStorageAccount(
         request: PutDataStorageAccountRequest,
         responseObserver: StreamObserver<PutDataStorageAccountResponse>,
-    ) {
-        if (responseObserver.isRequestNotMasterKey()) {
-            responseObserver.sendAccessDeniedException()
-            return
-        }
+    ) = responseObserver.doAdminOnlyRequest {
         // Update if exists, create if not
         val account = if (accountsRepository.findDataStorageAccountOrNull(request.address, enabledOnly = false) != null) {
             accountsRepository.setStorageAccountEnabled(accountAddress = request.address, enabled = request.enabled)
         } else {
             accountsRepository.addDataStorageAccount(accountAddress = request.address, enabled = request.enabled)
         }
-        responseObserver.onNext(
+        success(
             PutDataStorageAccountResponse.newBuilder().also { response ->
                 response.account = account.toProto()
             }.build()
         )
-        responseObserver.onCompleted()
     }
 
     override fun fetchDataStorageAccount(
         request: FetchDataStorageAccountRequest,
         responseObserver: StreamObserver<FetchDataStorageAccountResponse>,
-    ) {
-        if (responseObserver.isRequestNotMasterKey()) {
-            responseObserver.sendAccessDeniedException()
-            return
-        }
+    ) = responseObserver.doAdminOnlyRequest {
         accountsRepository.findDataStorageAccountOrNull(accountAddress = request.address, enabledOnly = false)
-            ?.also { account ->
-                responseObserver.onNext(
+            ?.let { account ->
+                success(
                     FetchDataStorageAccountResponse.newBuilder().also { response ->
                         response.account = account.toProto()
                     }.build()
                 )
-                responseObserver.onCompleted()
             }
             ?: run {
-                responseObserver.onError(NotFoundException("No account exists for address [${request.address}]"))
+                failure(NotFoundException("No account exists for address [${request.address}]"))
             }
     }
 
-    private fun <M : Message> StreamObserver<M>.isRequestNotMasterKey(): Boolean =
-        address() != masterKey.publicKey.getAddress(mainNet = provenanceProperties.mainNet)
-
-    private fun <M : Message> StreamObserver<M>.sendAccessDeniedException() {
-        this.onError(AccessDeniedException("Only the master key may make this request"))
+    private fun <M : Message> StreamObserver<M>.doAdminOnlyRequest(runIfAdmin: () -> Result<M>) {
+        if (address() != masterKey.publicKey.getAddress(mainNet = provenanceProperties.mainNet)) {
+            this.onError(AccessDeniedException("Only the master key may make this request"))
+        } else {
+            runIfAdmin().fold(
+                onSuccess = { response ->
+                    this.onNext(response)
+                    this.onCompleted()
+                },
+                onFailure = { e ->
+                    if (e is StatusRuntimeException) {
+                        this.onError(e)
+                    } else {
+                        logger.error("Unexpected response value returned by route", e)
+                        this.onError(StatusRuntimeException(Status.UNKNOWN.withDescription("An unexpected error occurred")))
+                    }
+                }
+            )
+        }
     }
 }
