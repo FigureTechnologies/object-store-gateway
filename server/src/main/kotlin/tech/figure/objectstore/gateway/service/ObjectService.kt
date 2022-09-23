@@ -11,18 +11,25 @@ import org.springframework.stereotype.Component
 import tech.figure.objectstore.gateway.GatewayOuterClass
 import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
 import tech.figure.objectstore.gateway.exception.AccessDeniedException
+import tech.figure.objectstore.gateway.repository.DataStorageAccountsRepository
 import tech.figure.objectstore.gateway.repository.ObjectPermissionsRepository
 import java.io.ByteArrayInputStream
 import java.security.PublicKey
 
 @Component
 class ObjectService(
+    private val accountsRepository: DataStorageAccountsRepository,
     private val objectStoreClient: CachedOsClient,
     private val masterKey: KeyRef,
     private val objectPermissionsRepository: ObjectPermissionsRepository,
     private val provenanceProperties: ProvenanceProperties,
 ) {
     fun putObject(obj: GatewayOuterClass.ObjectWithMeta, requesterPublicKey: PublicKey): String {
+        val requesterAddress = requesterPublicKey.getAddress(provenanceProperties.mainNet)
+        if (!accountsRepository.isAddressEnabled(requesterAddress)) {
+            throw AccessDeniedException("Object storage not granted to $requesterAddress")
+        }
+
         val objectBytes = obj.toByteArray()
         val objectSize = objectBytes.size.toLong()
 
@@ -33,7 +40,7 @@ class ObjectService(
             objectSize,
             setOf(requesterPublicKey),
         ).get().hash.toByteArray().base64String().also { hash ->
-            objectPermissionsRepository.addAccessPermission(hash, requesterPublicKey.getAddress(provenanceProperties.mainNet), objectSize)
+            objectPermissionsRepository.addAccessPermission(hash, requesterAddress, objectSize)
         }
     }
 

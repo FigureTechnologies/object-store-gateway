@@ -22,13 +22,17 @@ import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
 import tech.figure.objectstore.gateway.exception.AccessDeniedException
 import tech.figure.objectstore.gateway.helpers.randomObject
 import tech.figure.objectstore.gateway.model.ObjectPermissionsTable.objectHash
+import tech.figure.objectstore.gateway.repository.DataStorageAccountsRepository
 import tech.figure.objectstore.gateway.repository.ObjectPermissionsRepository
-import java.io.InputStream
 import java.net.URI
 import kotlin.random.Random
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
+import kotlin.test.fail
 
 class ObjectServiceTest {
+    lateinit var accountsRepository: DataStorageAccountsRepository
     lateinit var osClient: CachedOsClient
     lateinit var objectPermissionsRepository: ObjectPermissionsRepository
     lateinit var provenanceProperties: ProvenanceProperties
@@ -39,12 +43,33 @@ class ObjectServiceTest {
 
     @BeforeEach
     fun setUp() {
+        accountsRepository = mockk()
         osClient = mockk()
         objectPermissionsRepository = mockk()
 
         provenanceProperties = ProvenanceProperties(false, "pio-fakenet-1", URI(""))
 
-        objectService = ObjectService(osClient, masterKey, objectPermissionsRepository, provenanceProperties)
+        objectService = ObjectService(
+            accountsRepository = accountsRepository,
+            objectStoreClient = osClient,
+            masterKey = masterKey,
+            objectPermissionsRepository = objectPermissionsRepository,
+            provenanceProperties = provenanceProperties,
+        )
+    }
+
+    @Test
+    fun `putObject should throw an access denied exception when requester is not enabled for object storage`() {
+        val obj = randomObject()
+        every { accountsRepository.isAddressEnabled(any()) } returns false
+        val exception = assertFailsWith<AccessDeniedException> { objectService.putObject(obj, ownerKey) }
+        assertTrue(
+            actual = "Object storage not granted to ${ownerKey.getAddress(false)}" in (
+                exception.message
+                    ?: fail("Thrown exception should have a message")
+                ),
+            message = "The access denied exception should have the correct exception text",
+        )
     }
 
     @Test
@@ -53,7 +78,9 @@ class ObjectServiceTest {
         val objectBytes = obj.toByteArray()
         val objectHash = objectBytes.sha256String()
 
-        every { osClient.osClient.put(any<InputStream>(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(ownerKey), mapOf(), any(), false) } returns Futures.immediateFuture(
+        every { accountsRepository.isAddressEnabled(any()) } returns true
+
+        every { osClient.osClient.put(any(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(ownerKey), mapOf(), any(), false) } returns Futures.immediateFuture(
             Objects.ObjectResponse.newBuilder().setHash(objectHash.base64Decode().toByteString()).build()
         )
 
@@ -70,7 +97,9 @@ class ObjectServiceTest {
         val objectBytes = obj.toByteArray()
         val objectHash = objectBytes.sha256String()
 
-        every { osClient.osClient.put(any<InputStream>(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(ownerKey), mapOf(), any(), false) } returns Futures.immediateFuture(
+        every { accountsRepository.isAddressEnabled(any()) } returns true
+
+        every { osClient.osClient.put(any(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(ownerKey), mapOf(), any(), false) } returns Futures.immediateFuture(
             Objects.ObjectResponse.newBuilder().setHash(objectHash.base64Decode().toByteString()).build()
         )
 
