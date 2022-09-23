@@ -1,11 +1,11 @@
 package tech.figure.objectstore.gateway.repository
 
 import org.jetbrains.exposed.sql.transactions.transaction
-import org.springframework.stereotype.Service
+import org.springframework.stereotype.Repository
 import tech.figure.objectstore.gateway.configuration.EventStreamProperties
 import tech.figure.objectstore.gateway.model.BlockHeight
 
-@Service
+@Repository
 class BlockHeightRepository(private val eventStreamProperties: EventStreamProperties) {
     private val blockHeightUuid = eventStreamProperties.blockHeightTrackingUuid
 

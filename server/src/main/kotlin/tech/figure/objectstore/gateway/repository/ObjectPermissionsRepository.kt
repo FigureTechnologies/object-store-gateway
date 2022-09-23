@@ -1,10 +1,10 @@
 package tech.figure.objectstore.gateway.repository
 
 import org.jetbrains.exposed.sql.transactions.transaction
-import org.springframework.stereotype.Component
+import org.springframework.stereotype.Repository
 import tech.figure.objectstore.gateway.model.ObjectPermission
 
-@Component
+@Repository
 class ObjectPermissionsRepository {
     fun addAccessPermission(objectHash: String, granteeAddress: String, objectSize: Long) {
         transaction { ObjectPermission.new(objectHash, granteeAddress, objectSize) }
