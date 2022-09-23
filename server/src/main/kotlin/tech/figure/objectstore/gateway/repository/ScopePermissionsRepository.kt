@@ -1,10 +1,10 @@
 package tech.figure.objectstore.gateway.repository
 
 import org.jetbrains.exposed.sql.transactions.transaction
-import org.springframework.stereotype.Service
+import org.springframework.stereotype.Repository
 import tech.figure.objectstore.gateway.model.ScopePermission
 
-@Service
+@Repository
 class ScopePermissionsRepository {
     fun addAccessPermission(
         scopeAddress: String,

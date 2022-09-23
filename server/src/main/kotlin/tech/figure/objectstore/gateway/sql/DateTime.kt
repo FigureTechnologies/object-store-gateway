@@ -14,6 +14,7 @@ class OffsetDateTimeColumnType : ColumnType() {
     override fun valueFromDB(value: Any): Any = when (value) {
         is java.sql.Date -> OffsetDateTime.ofInstant(value.toInstant(), ZoneId.systemDefault())
         is java.sql.Timestamp -> OffsetDateTime.ofInstant(value.toInstant(), ZoneId.systemDefault())
+        is String -> OffsetDateTime.parse(value)
         else -> value
     }
 }
