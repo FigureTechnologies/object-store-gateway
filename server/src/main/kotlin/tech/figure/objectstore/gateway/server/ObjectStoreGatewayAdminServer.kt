@@ -19,8 +19,6 @@ import tech.figure.objectstore.gateway.exception.AccessDeniedException
 import tech.figure.objectstore.gateway.exception.NotFoundException
 import tech.figure.objectstore.gateway.repository.DataStorageAccountsRepository
 import tech.figure.objectstore.gateway.server.interceptor.JwtServerInterceptor
-import kotlin.Result.Companion.failure
-import kotlin.Result.Companion.success
 
 @GRpcService(interceptors = [JwtServerInterceptor::class])
 class ObjectStoreGatewayAdminServer(
@@ -40,11 +38,9 @@ class ObjectStoreGatewayAdminServer(
         } else {
             accountsRepository.addDataStorageAccount(accountAddress = request.address, enabled = request.enabled)
         }
-        success(
-            PutDataStorageAccountResponse.newBuilder().also { response ->
-                response.account = account.toProto()
-            }.build()
-        )
+        PutDataStorageAccountResponse.newBuilder().also { response ->
+            response.account = account.toProto()
+        }.build()
     }
 
     override fun fetchDataStorageAccount(
@@ -53,22 +49,18 @@ class ObjectStoreGatewayAdminServer(
     ) = responseObserver.doAdminOnlyRequest {
         accountsRepository.findDataStorageAccountOrNull(accountAddress = request.address, enabledOnly = false)
             ?.let { account ->
-                success(
-                    FetchDataStorageAccountResponse.newBuilder().also { response ->
-                        response.account = account.toProto()
-                    }.build()
-                )
+                FetchDataStorageAccountResponse.newBuilder().also { response ->
+                    response.account = account.toProto()
+                }.build()
             }
-            ?: run {
-                failure(NotFoundException("No account exists for address [${request.address}]"))
-            }
+            ?: throw NotFoundException("No account exists for address [${request.address}]")
     }
 
-    private fun <M : Message> StreamObserver<M>.doAdminOnlyRequest(runIfAdmin: () -> Result<M>) {
+    private fun <M : Message> StreamObserver<M>.doAdminOnlyRequest(runIfAdmin: () -> M) {
         if (address() != masterKey.publicKey.getAddress(mainNet = provenanceProperties.mainNet)) {
             this.onError(AccessDeniedException("Only the master key may make this request"))
         } else {
-            runIfAdmin().fold(
+            runCatching(runIfAdmin).fold(
                 onSuccess = { response ->
                     this.onNext(response)
                     this.onCompleted()
@@ -77,7 +69,7 @@ class ObjectStoreGatewayAdminServer(
                     if (e is StatusRuntimeException) {
                         this.onError(e)
                     } else {
-                        logger.error("Unexpected response value returned by route", e)
+                        logger.error("Unexpected exception thrown by rpc route", e)
                         this.onError(StatusRuntimeException(Status.UNKNOWN.withDescription("An unexpected error occurred")))
                     }
                 }
