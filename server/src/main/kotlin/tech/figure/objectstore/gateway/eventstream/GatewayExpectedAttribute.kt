@@ -22,7 +22,7 @@ enum class GatewayExpectedAttribute(val key: String) {
      * The bech32 Provenance Blockchain scope address to which the event is related.  This will cause the gateway to
      * look up the target scope and verify its contents based on the event type.
      */
-    SCOPE_ADDRESS("object_store_gateway_target_scope_address"),
+    SCOPE_ADDRESS("object_store_gateway_scope_address"),
 
     /**
      * The bech32 address of the account for which to execute the event actions.
