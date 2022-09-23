@@ -42,6 +42,7 @@ class DataConfig {
                     jdbcUrl = "jdbc:sqlite:${databaseProperties.host.trimEnd('/')}/${databaseProperties.name}.db"
                     TransactionManager.manager.defaultIsolationLevel = Connection.TRANSACTION_SERIALIZABLE
                 }
+                else -> throw IllegalArgumentException("Only the values [postgresql, memory, sqlite] are allowed for DB_TYPE")
             }
             logger.info("Connecting to {} on schema {} with user {}", jdbcUrl, databaseProperties.schema, databaseProperties.username)
             username = databaseProperties.username

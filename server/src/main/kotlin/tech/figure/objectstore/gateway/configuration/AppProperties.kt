@@ -12,7 +12,6 @@ import java.util.UUID
 @Validated
 data class EventStreamProperties(
     val websocketUri: URI,
-    val rpcUri: URI,
     val epochHeight: Long,
     val enabled: Boolean,
     val blockHeightTrackingUuid: UUID,
