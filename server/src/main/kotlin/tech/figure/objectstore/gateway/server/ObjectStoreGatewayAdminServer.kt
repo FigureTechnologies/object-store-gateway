@@ -28,6 +28,7 @@ class ObjectStoreGatewayAdminServer(
         responseObserver: StreamObserver<PutDataStorageAccountResponse>,
     ) {
         if (responseObserver.isRequestNotMasterKey()) {
+            responseObserver.sendAccessDeniedException()
             return
         }
         // Update if exists, create if not
@@ -49,6 +50,7 @@ class ObjectStoreGatewayAdminServer(
         responseObserver: StreamObserver<FetchDataStorageAccountResponse>,
     ) {
         if (responseObserver.isRequestNotMasterKey()) {
+            responseObserver.sendAccessDeniedException()
             return
         }
         accountsRepository.findDataStorageAccountOrNull(accountAddress = request.address, enabledOnly = false)
@@ -66,9 +68,9 @@ class ObjectStoreGatewayAdminServer(
     }
 
     private fun <M : Message> StreamObserver<M>.isRequestNotMasterKey(): Boolean =
-        (address() != masterKey.publicKey.getAddress(mainNet = provenanceProperties.mainNet)).also { notMasterKey ->
-            if (notMasterKey) {
-                this.onError(AccessDeniedException("Only the master key may make this request"))
-            }
-        }
+        address() != masterKey.publicKey.getAddress(mainNet = provenanceProperties.mainNet)
+
+    private fun <M : Message> StreamObserver<M>.sendAccessDeniedException() {
+        this.onError(AccessDeniedException("Only the master key may make this request"))
+    }
 }
