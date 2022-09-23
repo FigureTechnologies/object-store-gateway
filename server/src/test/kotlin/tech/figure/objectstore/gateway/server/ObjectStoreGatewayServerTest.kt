@@ -1,14 +1,12 @@
 package tech.figure.objectstore.gateway.server
 
 import Constants
-import com.google.protobuf.Message
 import io.grpc.Context
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import io.grpc.stub.StreamObserver
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.slot
 import io.mockk.verify
 import io.mockk.verifyAll
 import io.provenance.hdwallet.ec.extensions.toJavaECKeyPair
@@ -30,12 +28,14 @@ import tech.figure.objectstore.gateway.GatewayOuterClass.GrantScopePermissionRes
 import tech.figure.objectstore.gateway.GatewayOuterClass.RevokeScopePermissionRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.RevokeScopePermissionResponse
 import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
+import tech.figure.objectstore.gateway.helpers.createErrorSlot
 import tech.figure.objectstore.gateway.helpers.genRandomAccount
 import tech.figure.objectstore.gateway.helpers.getValidFetchObjectByHashRequest
 import tech.figure.objectstore.gateway.helpers.getValidPutObjectRequest
 import tech.figure.objectstore.gateway.helpers.getValidRequest
 import tech.figure.objectstore.gateway.helpers.keyRef
 import tech.figure.objectstore.gateway.helpers.mockScopeResponse
+import tech.figure.objectstore.gateway.helpers.mockkObserver
 import tech.figure.objectstore.gateway.helpers.objectFromParts
 import tech.figure.objectstore.gateway.helpers.queryGrantCount
 import tech.figure.objectstore.gateway.model.ScopePermissionsTable
@@ -252,8 +252,7 @@ class ObjectStoreGatewayServerTest {
         // Setup scope fetch service to freak out, simulating a provenance communication error
         every { scopeFetchService.fetchScope(any(), any(), any()) } throws IllegalStateException("Provenance is actin' up again")
         val responseObserver = mockkObserver<GrantScopePermissionResponse>()
-        val exceptionSlot = slot<StatusRuntimeException>()
-        every { responseObserver.onError(capture(exceptionSlot)) } returns Unit
+        val exceptionSlot = responseObserver.createErrorSlot<StatusRuntimeException>()
         server.grantScopePermission(request = getPermissionGrant(), responseObserver = responseObserver)
         verifyAll(inverse = true) {
             responseObserver.onNext(any())
@@ -321,8 +320,7 @@ class ObjectStoreGatewayServerTest {
         // Setup scope fetch service to freak out, simulating a provenance communication error
         every { scopeFetchService.fetchScope(any(), any(), any()) } throws IllegalArgumentException("That ol' blockchain is givin' us trouble")
         val responseObserver = mockkObserver<RevokeScopePermissionResponse>()
-        val exceptionSlot = slot<StatusRuntimeException>()
-        every { responseObserver.onError(capture(exceptionSlot)) } returns Unit
+        val exceptionSlot = responseObserver.createErrorSlot<StatusRuntimeException>()
         server.revokeScopePermission(request = getPermissionRevoke(), responseObserver = responseObserver)
         verifyAll(inverse = true) {
             responseObserver.onNext(any())
@@ -433,15 +431,4 @@ class ObjectStoreGatewayServerTest {
         granter = granter,
         grantId = grantId,
     )
-
-    /**
-     * Observer mocks will freak out and throw an exception when any of their standard response functions are called.
-     * This function will inline create a StreamObserver for the rpc message requested, ensuring that all its relevant
-     * functions utilized in this application are mocked out.
-     */
-    private inline fun <reified T : Message> mockkObserver(): StreamObserver<T> = mockk<StreamObserver<T>>().also { observer ->
-        every { observer.onNext(any()) } returns Unit
-        every { observer.onError(any()) } returns Unit
-        every { observer.onCompleted() } returns Unit
-    }
 }

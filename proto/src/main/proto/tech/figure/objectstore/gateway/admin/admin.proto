@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package tech.figure.objectstore.gateway.admin;
+
+import "google/protobuf/timestamp.proto";
+
+service GatewayAdmin {
+  rpc PutDataStorageAccount(PutDataStorageAccountRequest) returns (PutDataStorageAccountResponse) {};
+  rpc FetchDataStorageAccount(FetchDataStorageAccountRequest) returns (FetchDataStorageAccountResponse) {};
+}
+
+// MASTER KEY ACCESS ONLY.  This route either adds a new account or updates an existing data storage account, allowing
+// access to the FetchObject and PutObject rpc routes.
+message PutDataStorageAccountRequest {
+  string address = 1; // The Provenance Blockchain bech32 address of the account that will be added (or updated) as an authorized user for using object storage routes
+  bool enabled = 2; // If true, this account will be enabled for object storage routes.  If false, the account will be barred from this functionality
+}
+
+message PutDataStorageAccountResponse {
+  DataStorageAccount account = 1; // The account created in the service by the request
+}
+
+// MASTER KEY ACCESS ONLY.  This route returns information about an existing data storage account.
+// If an account does not exist in the server for this address, a NOT_FOUND error will be emitted.
+message FetchDataStorageAccountRequest {
+  string address = 1; // The Provenance Blockchain bech32 address of the account for which to fetch a storage record
+}
+
+message FetchDataStorageAccountResponse {
+  DataStorageAccount account = 1; // Values pertaining to an existing data storage account
+}
+
+message DataStorageAccount {
+  string address = 1; // The Provenance Blockchain bech32 address of this account
+  bool enabled = 2; // If true, this account exists in the gateway service and is allowed to use object storage routes
+  google.protobuf.Timestamp created = 3; // The timestamp at which this account was created
+}

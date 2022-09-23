@@ -5,13 +5,13 @@ import org.jetbrains.exposed.sql.transactions.transaction
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.SpringBootTest
-import tech.figure.objectstore.gateway.model.DataStorageAccount
 import tech.figure.objectstore.gateway.model.DataStorageAccountsTable
 import java.time.OffsetDateTime
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @SpringBootTest
@@ -30,26 +30,24 @@ class DataStorageAccountsRepositoryTest {
         val accountAddress = "account address yolo"
         repository.addDataStorageAccount(accountAddress)
 
-        transaction {
-            DataStorageAccount.findByAddressOrNull(accountAddress = accountAddress).also { account ->
-                assertNotNull(
-                    actual = account,
-                    message = "The account should be accessible by its address",
-                )
-                assertEquals(
-                    expected = accountAddress,
-                    actual = account.accountAddress,
-                    message = "The accountAddress value should properly return the primary key account address",
-                )
-                assertTrue(
-                    actual = account.enabled,
-                    message = "The account should be enabled by default",
-                )
-                assertFalse(
-                    actual = beforeInsert.isAfter(account.created),
-                    message = "The timestamp created before the insert [$beforeInsert] should not be after the created timestamp [${account.created}]",
-                )
-            }
+        repository.findDataStorageAccountOrNull(accountAddress = accountAddress).also { account ->
+            assertNotNull(
+                actual = account,
+                message = "The account should be accessible by its address",
+            )
+            assertEquals(
+                expected = accountAddress,
+                actual = account.accountAddress,
+                message = "The accountAddress value should properly return the primary key account address",
+            )
+            assertTrue(
+                actual = account.enabled,
+                message = "The account should be enabled by default",
+            )
+            assertFalse(
+                actual = beforeInsert.isAfter(account.created),
+                message = "The timestamp created before the insert [$beforeInsert] should not be after the created timestamp [${account.created}]",
+            )
         }
     }
 
@@ -74,6 +72,29 @@ class DataStorageAccountsRepositoryTest {
             expected = account.created,
             actual = secondAccountMaybe.created,
             message = "Created timestamps should match",
+        )
+    }
+
+    @Test
+    fun `findDataStorageAccountOrNull regards the enabled flag`() {
+        assertNull(
+            actual = repository.findDataStorageAccountOrNull(accountAddress = "some nonexistent addr", enabledOnly = false),
+            message = "Null should be returned when querying for a nonexistent account",
+        )
+        val accountAddress = "heck-yeah-address"
+        val account = repository.addDataStorageAccount(accountAddress, enabled = false)
+        assertFalse(
+            actual = account.enabled,
+            message = "Sanity check: The account should be created as a disabled account",
+        )
+        assertNull(
+            actual = repository.findDataStorageAccountOrNull(accountAddress = accountAddress, enabledOnly = true),
+            message = "When only returning enabled records, findDataStorageAccountOrNull should return null",
+        )
+        assertEquals(
+            expected = account,
+            actual = repository.findDataStorageAccountOrNull(accountAddress = accountAddress, enabledOnly = false),
+            message = "When returning all records, the disabled account should be found",
         )
     }
 
