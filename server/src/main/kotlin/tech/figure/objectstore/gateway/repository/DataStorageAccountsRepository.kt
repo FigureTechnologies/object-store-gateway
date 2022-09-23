@@ -6,9 +6,12 @@ import tech.figure.objectstore.gateway.model.DataStorageAccount
 
 @Repository
 class DataStorageAccountsRepository {
-    fun addDataStorageAccount(accountAddress: String): DataStorageAccount = transaction {
-        DataStorageAccount.new(accountAddress)
+    fun addDataStorageAccount(accountAddress: String, enabled: Boolean = true): DataStorageAccount = transaction {
+        DataStorageAccount.new(accountAddress = accountAddress, enabled = enabled)
     }
+
+    fun findDataStorageAccountOrNull(accountAddress: String, enabledOnly: Boolean = true): DataStorageAccount? =
+        transaction { DataStorageAccount.findByAddressOrNull(accountAddress = accountAddress, enabledOnly = enabledOnly) }
 
     fun setStorageAccountEnabled(accountAddress: String, enabled: Boolean): DataStorageAccount = transaction {
         DataStorageAccount.setEnabled(accountAddress = accountAddress, enabled = enabled)

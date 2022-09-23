@@ -13,6 +13,10 @@ import tech.figure.objectstore.gateway.GatewayOuterClass.GrantScopePermissionRes
 import tech.figure.objectstore.gateway.GatewayOuterClass.PutObjectResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.RevokeScopePermissionRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.RevokeScopePermissionResponse
+import tech.figure.objectstore.gateway.admin.Admin.DataStorageAccount
+import tech.figure.objectstore.gateway.admin.Admin.FetchDataStorageAccountRequest
+import tech.figure.objectstore.gateway.admin.Admin.PutDataStorageAccountRequest
+import tech.figure.objectstore.gateway.admin.GatewayAdminGrpc
 import java.io.Closeable
 import java.time.Duration
 import java.time.OffsetDateTime
@@ -36,6 +40,7 @@ class GatewayClient(val config: ClientConfig) : Closeable {
         .build()
 
     private val gatewayStub = GatewayGrpc.newFutureStub(channel)
+    private val gatewayAdminStub = GatewayAdminGrpc.newFutureStub(channel)
 
     /**
      * Fetch scope data from gateway, using an existing JWT as authentication
@@ -73,7 +78,7 @@ class GatewayClient(val config: ClientConfig) : Closeable {
         objectBytes: ByteArray,
         objectType: String? = null,
         jwt: GatewayJwt,
-        timeout: Duration = Duration.ofSeconds(10),
+        timeout: Duration = GatewayJwt.DEFAULT_TIMEOUT,
     ): PutObjectResponse {
         return gatewayStub.withDeadline(Deadline.after(timeout.seconds, TimeUnit.SECONDS))
             .interceptJwt(jwt, timeout)
@@ -102,7 +107,7 @@ class GatewayClient(val config: ClientConfig) : Closeable {
     fun getObject(
         hash: String,
         jwt: GatewayJwt,
-        timeout: Duration = Duration.ofSeconds(10),
+        timeout: Duration = GatewayJwt.DEFAULT_TIMEOUT,
     ): GatewayOuterClass.FetchObjectByHashResponse {
         return gatewayStub.withDeadline(Deadline.after(timeout.seconds, TimeUnit.SECONDS))
             .interceptJwt(jwt, timeout)
@@ -130,7 +135,7 @@ class GatewayClient(val config: ClientConfig) : Closeable {
         granteeAddress: String,
         jwt: GatewayJwt,
         grantId: String? = null,
-        timeout: Duration = Duration.ofSeconds(10),
+        timeout: Duration = GatewayJwt.DEFAULT_TIMEOUT,
     ): GrantScopePermissionResponse = gatewayStub.withDeadline(Deadline.after(timeout.seconds, TimeUnit.SECONDS))
         .interceptJwt(jwt, timeout)
         .grantScopePermission(
@@ -162,7 +167,7 @@ class GatewayClient(val config: ClientConfig) : Closeable {
         granteeAddress: String,
         jwt: GatewayJwt,
         grantId: String? = null,
-        timeout: Duration = Duration.ofSeconds(10),
+        timeout: Duration = GatewayJwt.DEFAULT_TIMEOUT,
     ): RevokeScopePermissionResponse = gatewayStub.withDeadline(Deadline.after(timeout.seconds, TimeUnit.SECONDS))
         .interceptJwt(jwt, timeout)
         .revokeScopePermission(
@@ -173,6 +178,56 @@ class GatewayClient(val config: ClientConfig) : Closeable {
             }.build()
         )
         .get()
+
+    /**
+     * Adds a new data storage account or updates an existing data storage account in the gateway service with the
+     * given address and additional properties.  This will allow an account access to the fetchObject and putObject
+     * functions when signing those requests with a JWT.
+     *
+     * THIS ROUTE MANDATES THE USE OF THE GATEWAY MASTER KEY.  ALL OTHER ADDRESSES' REQUESTS WILL BE REJECTED.
+     *
+     * @param address The Provenance Blockchain bech32 address of the account that will be added (or updated) as an
+     * authorized user for using object storage routes
+     * @param enabled If true, this account will be enabled for object storage routes.  If false, the account will be
+     * barred from this functionality
+     * @param jwt any instance of GatewayJwt for use in generating the proper JWT metadata for the request
+     * @param timeout an optional timeout for the request that also controls the timeout for any generated jwt
+     */
+    fun adminPutDataStorageAccount(
+        address: String,
+        enabled: Boolean,
+        jwt: GatewayJwt,
+        timeout: Duration = GatewayJwt.DEFAULT_TIMEOUT,
+    ): DataStorageAccount = gatewayAdminStub.withDeadline(Deadline.after(timeout.seconds, TimeUnit.SECONDS))
+        .interceptJwt(jwt, timeout)
+        .putDataStorageAccount(
+            PutDataStorageAccountRequest.newBuilder().also { request ->
+                request.address = address
+                request.enabled = enabled
+            }.build()
+        )
+        .get()
+        .account
+
+    /**
+     * Fetches a data storage account existing in the gateway.  If an account does not exist in the server for this
+     * address, a NOT_FOUND error will be emitted.
+     *
+     * THIS ROUTE MANDATES THE USE OF THE GATEWAY MASTER KEY.  ALL OTHER ADDRESSES' REQUESTS WILL BE REJECTED.
+     *
+     * @param address The Provenance Blockchain bech32 address of the account for which to fetch a storage record
+     * @param jwt any instance of GatewayJwt for use in generating the proper JWT metadata for the request
+     * @param timeout an optional timeout for the request that also controls the timeout for any generated jwt
+     */
+    fun adminFetchDataStorageAccount(
+        address: String,
+        jwt: GatewayJwt,
+        timeout: Duration = GatewayJwt.DEFAULT_TIMEOUT,
+    ): DataStorageAccount = gatewayAdminStub.withDeadline(Deadline.after(timeout.seconds, TimeUnit.SECONDS))
+        .interceptJwt(jwt, timeout)
+        .fetchDataStorageAccount(FetchDataStorageAccountRequest.newBuilder().setAddress(address).build())
+        .get()
+        .account
 
     override fun close() {
         channel.shutdown()
