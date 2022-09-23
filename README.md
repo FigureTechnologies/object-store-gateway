@@ -209,7 +209,7 @@ REQUIRED | Boolean
 If this value is true, the server will automatically start watching events from the target Provenance Blockchain event
 URI.  If not, a warning message will be emitted and the application will only be available for RPC route utilization.
 
-### EVENT_STREAM_BLOCK_HEIGHT_TRACKING_UUID`
+### EVENT_STREAM_BLOCK_HEIGHT_TRACKING_UUID
 REQUIRED | UUID v4
 
 A UUID that establishes the latest block height.  If the app needs to re-run various events, swap this value to a new
