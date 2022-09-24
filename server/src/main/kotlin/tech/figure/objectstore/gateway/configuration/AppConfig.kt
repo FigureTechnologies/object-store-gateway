@@ -9,6 +9,7 @@ import io.provenance.scope.encryption.util.toJavaPrivateKey
 import io.provenance.scope.encryption.util.toKeyPair
 import io.provenance.scope.objectstore.client.CachedOsClient
 import io.provenance.scope.objectstore.client.OsClient
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
@@ -21,14 +22,14 @@ class AppConfig {
         return CachedOsClient(osClient, objectStoreProperties.decryptionWorkerThreads, objectStoreProperties.concurrencySize, objectStoreProperties.cacheRecordSizeBytes)
     }
 
-    @Bean
+    @Bean(BeanQualifiers.OBJECTSTORE_ENCRYPTION_KEYS)
     fun encryptionKeys(provenanceProperties: ProvenanceProperties, objectStoreProperties: ObjectStoreProperties): Map<String, KeyRef> = objectStoreProperties.privateKeys.map {
         it.toJavaPrivateKey().toKeyPair().let { keyPair ->
             keyPair.public.getAddress(provenanceProperties.mainNet) to DirectKeyRef(keyPair)
         }
     }.toMap()
 
-    @Bean
+    @Bean(BeanQualifiers.OBJECTSTORE_MASTER_KEY)
     fun masterKey(objectStoreProperties: ObjectStoreProperties): KeyRef = objectStoreProperties.masterKey.toJavaPrivateKey().toKeyPair().let(::DirectKeyRef)
 
     @Bean
@@ -38,6 +39,8 @@ class AppConfig {
         gasEstimationMethod = GasEstimationMethod.MSG_FEE_CALCULATION,
     )
 
-    @Bean
-    fun accountAddresses(encryptionKeys: Map<String, KeyRef>): Set<String> = encryptionKeys.keys
+    @Bean(BeanQualifiers.OBJECTSTORE_PRIVATE_KEYS)
+    fun accountAddresses(
+        @Qualifier(BeanQualifiers.OBJECTSTORE_ENCRYPTION_KEYS) encryptionKeys: Map<String, KeyRef>,
+    ): Set<String> = encryptionKeys.keys
 }

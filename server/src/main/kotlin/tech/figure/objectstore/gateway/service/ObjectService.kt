@@ -7,8 +7,10 @@ import io.provenance.scope.objectstore.util.base64Decode
 import io.provenance.scope.objectstore.util.toHex
 import io.provenance.scope.util.NotFoundException
 import io.provenance.scope.util.base64String
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
 import tech.figure.objectstore.gateway.GatewayOuterClass
+import tech.figure.objectstore.gateway.configuration.BeanQualifiers
 import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
 import tech.figure.objectstore.gateway.exception.AccessDeniedException
 import tech.figure.objectstore.gateway.repository.DataStorageAccountsRepository
@@ -20,7 +22,7 @@ import java.security.PublicKey
 class ObjectService(
     private val accountsRepository: DataStorageAccountsRepository,
     private val objectStoreClient: CachedOsClient,
-    private val masterKey: KeyRef,
+    @Qualifier(BeanQualifiers.OBJECTSTORE_MASTER_KEY) private val masterKey: KeyRef,
     private val objectPermissionsRepository: ObjectPermissionsRepository,
     private val provenanceProperties: ProvenanceProperties,
 ) {

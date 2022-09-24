@@ -2,12 +2,14 @@ package tech.figure.objectstore.gateway.service
 
 import io.provenance.metadata.v1.ScopeResponse
 import mu.KLogging
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Service
+import tech.figure.objectstore.gateway.configuration.BeanQualifiers
 import tech.figure.objectstore.gateway.repository.ScopePermissionsRepository
 
 @Service
 class ScopePermissionsService(
-    private val accountAddresses: Set<String>,
+    @Qualifier(BeanQualifiers.OBJECTSTORE_PRIVATE_KEYS) private val accountAddresses: Set<String>,
     private val scopeFetchService: ScopeFetchService,
     private val scopePermissionsRepository: ScopePermissionsRepository,
 ) {

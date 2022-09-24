@@ -8,12 +8,14 @@ import io.provenance.scope.encryption.model.KeyRef
 import io.provenance.scope.encryption.util.getAddress
 import mu.KLogging
 import org.lognet.springboot.grpc.GRpcService
+import org.springframework.beans.factory.annotation.Qualifier
 import tech.figure.objectstore.gateway.address
 import tech.figure.objectstore.gateway.admin.Admin.FetchDataStorageAccountRequest
 import tech.figure.objectstore.gateway.admin.Admin.FetchDataStorageAccountResponse
 import tech.figure.objectstore.gateway.admin.Admin.PutDataStorageAccountRequest
 import tech.figure.objectstore.gateway.admin.Admin.PutDataStorageAccountResponse
 import tech.figure.objectstore.gateway.admin.GatewayAdminGrpc.GatewayAdminImplBase
+import tech.figure.objectstore.gateway.configuration.BeanQualifiers
 import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
 import tech.figure.objectstore.gateway.exception.AccessDeniedException
 import tech.figure.objectstore.gateway.exception.NotFoundException
@@ -23,7 +25,7 @@ import tech.figure.objectstore.gateway.server.interceptor.JwtServerInterceptor
 @GRpcService(interceptors = [JwtServerInterceptor::class])
 class ObjectStoreGatewayAdminServer(
     private val accountsRepository: DataStorageAccountsRepository,
-    private val masterKey: KeyRef,
+    @Qualifier(BeanQualifiers.OBJECTSTORE_MASTER_KEY) private val masterKey: KeyRef,
     private val provenanceProperties: ProvenanceProperties,
 ) : GatewayAdminImplBase() {
     private companion object : KLogging()
