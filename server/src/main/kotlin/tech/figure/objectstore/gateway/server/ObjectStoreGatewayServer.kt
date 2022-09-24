@@ -7,11 +7,13 @@ import io.provenance.scope.encryption.model.KeyRef
 import io.provenance.scope.encryption.util.getAddress
 import mu.KLogging
 import org.lognet.springboot.grpc.GRpcService
+import org.springframework.beans.factory.annotation.Qualifier
 import tech.figure.objectstore.gateway.GatewayGrpc
 import tech.figure.objectstore.gateway.GatewayOuterClass
 import tech.figure.objectstore.gateway.GatewayOuterClass.GrantScopePermissionResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.RevokeScopePermissionResponse
 import tech.figure.objectstore.gateway.address
+import tech.figure.objectstore.gateway.configuration.BeanQualifiers
 import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
 import tech.figure.objectstore.gateway.publicKey
 import tech.figure.objectstore.gateway.server.interceptor.JwtServerInterceptor
@@ -23,7 +25,7 @@ import tech.figure.objectstore.gateway.service.ScopePermissionsService
 
 @GRpcService(interceptors = [JwtServerInterceptor::class])
 class ObjectStoreGatewayServer(
-    private val masterKey: KeyRef,
+    @Qualifier(BeanQualifiers.OBJECTSTORE_MASTER_KEY) private val masterKey: KeyRef,
     private val scopeFetchService: ScopeFetchService,
     private val scopePermissionsService: ScopePermissionsService,
     private val objectService: ObjectService,
