@@ -308,3 +308,10 @@ The schema name under which tables are established in the target database.
 REQUIRED | Integer
 
 The maximum amount of connections that will be simultaneously used with the target database.
+
+### DB_BASELINE_ON_MIGRATE
+OPTIONAL | Boolean | Default = false
+
+The value used for Flyway's baselineOnMigrate functionality.  This value determines if flyway should run migrations from
+its baseline version on an existing database.  See the [Flyway documentation](https://flywaydb.org/documentation/configuration/parameters/baselineOnMigrate)
+on this value for more information.
