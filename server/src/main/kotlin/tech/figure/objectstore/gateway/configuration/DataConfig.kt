@@ -74,12 +74,10 @@ class DataConfig {
 
     @Bean
     fun flyway(dataSource: DataSource, databaseProperties: DatabaseProperties): Flyway = Flyway(
-        FluentConfiguration().dataSource(dataSource).baselineOnMigrate(databaseProperties.baselineOnMigrate).apply {
-            if (databaseProperties.type != "postgresql") {
-                // skip initial 1_0__Init_UUID migration for non-postgres dbs as this isn't supported for sqlite/memory
-                baselineVersion("1.0")
-            }
-        }
+        FluentConfiguration().dataSource(dataSource).baselineOnMigrate(databaseProperties.baselineOnMigrate)
+            // Dynamically set the location for migration files based on the database type, allowing for multiple
+            // dialects to specify their own migrations as necessary
+            .locations("db/migration/common", "db/migration/${databaseProperties.type}")
     ).apply {
         if (databaseProperties.type != "postgresql") {
             baseline()
