@@ -15,7 +15,6 @@ message FetchObjectRequest {
   string granter_address = 2; // optional
 }
 
-
 message FetchObjectResponse {
   string scope_id = 1;
   repeated Record records = 2;

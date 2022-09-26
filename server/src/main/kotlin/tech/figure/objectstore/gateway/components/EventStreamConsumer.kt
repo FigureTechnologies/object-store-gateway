@@ -41,6 +41,10 @@ class EventStreamConsumer(
     private val decoderAdapter = moshiDecoderAdapter()
 
     override fun onApplicationEvent(event: ApplicationReadyEvent) {
+        if (!eventStreamProperties.enabled) {
+            logger.warn("Event stream has been manually disabled! Use a value of `true` for EVENT_STREAM_ENABLED to re-enable it")
+            return
+        }
         tryStartEventStream {
             eventStreamLoop()
         }

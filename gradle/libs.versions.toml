@@ -2,7 +2,7 @@
 bouncyCastle = "1.70"
 exposed = "0.37.3"
 flyway = "8.0.2"
-grpc = "1.45.1"
+grpc = "1.45.1" # If updating this value, ensure to update the doc reference in the ClientConfig class
 grpcSpringboot = "3.4.3"
 hikariCP = "5.0.1"
 jackson = "2.12.5"
