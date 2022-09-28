@@ -48,7 +48,8 @@ dependencies {
 
     listOf(
         libs.bundles.testKotlin,
-        libs.bundles.testSpringBoot
+        libs.bundles.testSpringBoot,
+        libs.bundles.testContainers,
     ).forEach(::testImplementation)
 }
 

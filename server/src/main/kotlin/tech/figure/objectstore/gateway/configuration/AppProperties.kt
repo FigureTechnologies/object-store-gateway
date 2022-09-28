@@ -52,5 +52,6 @@ data class DatabaseProperties(
     val port: String,
     val schema: String,
     @Pattern(value = "\\d{1,2}") val connectionPoolSize: String,
-    val baselineOnMigrate: Boolean,
+    val baselineOnMigrate: Boolean = false,
+    val repairFlywayChecksums: Boolean = false,
 )

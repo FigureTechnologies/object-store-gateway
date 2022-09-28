@@ -22,6 +22,7 @@ provenanceProto = "1.8.0-rc10"
 provenanceScope = "0.4.9"
 scarlet = "0.1.12"
 sqLite = "3.36.0.3"
+testContainers = "1.17.3"
 
 [libraries]
 bcProv = { module = "org.bouncycastle:bcprov-jdk15on", version.ref = "bouncyCastle" }
@@ -73,6 +74,8 @@ kotlinTest = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotli
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 starterTest = { module = "org.springframework.boot:spring-boot-starter-test" }
 javaJwt = { module = "com.auth0:java-jwt", version.ref = "jwt" }
+testContainers = { module = "org.testcontainers:testcontainers", version.ref = "testContainers" }
+testContainersPostgres = { module = "org.testcontainers:postgresql", version.ref = "testContainers" }
 
 [bundles]
 bouncyCastle = ["bcProv"]
@@ -89,3 +92,4 @@ exposed = ["exposedCore", "exposedDao", "exposedJdbc", "postgres", "hikariCP", "
 testKotlin = ["kotlinTest", "mockk"]
 testSpringBoot = ["starterTest"]
 jwt = ["javaJwt"]
+testContainers = ["testContainers", "testContainersPostgres"]
