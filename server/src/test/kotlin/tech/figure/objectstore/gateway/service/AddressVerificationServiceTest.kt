@@ -18,7 +18,7 @@ class AddressVerificationServiceTest {
         val service = getService(mainNet = true)
         // Proves bech32 validation verifies checksums
         assertFailedValidation(
-            verification = service.verifyAccountAddress("fa1keaddress"),
+            verification = service.verifyAccountAddress("pb1fakeaddress"),
             expectedMessage = "checksum failed",
         )
         // Proves bech32 validation requires mainnet when configured to do so
