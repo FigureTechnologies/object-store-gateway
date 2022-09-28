@@ -14,6 +14,14 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
+/**
+ * Test each database migration for a given set of properties, indicating the database to which connections will be made
+ * for the tests.
+ *
+ * @param databaseProperties The configurations that will be leveraged to simulate the application's database
+ * connections.
+ * @param addDefaultHooks If true, default checks to verify record integrity will be added after various migrations.
+ */
 class DbMigrationTester(
     private val databaseProperties: DatabaseProperties,
     addDefaultHooks: Boolean = true,
@@ -35,6 +43,8 @@ class DbMigrationTester(
                 )
             }
             addAfterHook(version = "3.1", name = "Verify dummy record") {
+                // This ensures that after migration 3.1, which adds a new grant_id column to the scope_permissions
+                // table, that the record inserted after migration 1.1 is not negatively affected.
                 runRawSqlQuery("select scope_address, grantee_address, granter_address, grant_id from scope_permissions where id = 1") { resultSet ->
                     resultSet.next()
                     assertEquals(
@@ -61,6 +71,14 @@ class DbMigrationTester(
         }
     }
 
+    /**
+     * Adds an action to be taken before a specific version of a migration runs.  Only one hook may be added per version.
+     *
+     * @param version The Flyway-formatted version of the migration file to target.  Example: To target a migration
+     * named V5_3__My_Cool_Migration.sql, input: 5.3
+     * @param name The name qualifier for this hook.  This value will be displayed in test logs.
+     * @param action The code to run before the migration is applied.
+     */
     fun addBeforeHook(
         version: String,
         name: String = "$version-beforeHook",
@@ -77,6 +95,14 @@ class DbMigrationTester(
         )
     }
 
+    /**
+     * Adds an action to be taken after a specific version of a migration runs.  Only one hook may be added per version.
+     *
+     * @param version The Flyway-formatted version of the migration file to target.  Example: To target a migration
+     * named V10_11__A_Migration_To_End_All_Migrations.sql, input: 10.11
+     * @param name The name qualifier for this hook.  This value will be displayed in test logs.
+     * @param action The code to run after the migration is applied.
+     */
     fun addAfterHook(
         version: String,
         name: String = "$version-afterHook",
@@ -93,17 +119,35 @@ class DbMigrationTester(
         )
     }
 
+    /**
+     * Adds an action to be taken after all migrations have been successfully applied.  Any number of "after all" hooks
+     * may be added as long as their names are unique.
+     *
+     * @param name The name qualifier for this hook.  This value must be unique to "after all" hooks and will be
+     * displayed in test logs.
+     * @param priority The order in which this hook should be run in relation to other "after all" hooks.  If no value
+     * is provided, this hook will be established to run after all other previously-added "after all" hooks before it.
+     * @param action The code to run after all migrations are applied.
+     */
     fun addAfterAllHook(
         name: String,
+        priority: Int = afterAllHooks().maxOfOrNull { it.priority }?.let { it + 1 } ?: 1,
         action: () -> Unit,
     ): DbMigrationTester = this.apply {
         assertTrue(
             actual = afterAllHooks().none { it.name == name },
             message = "An after all migrations hook with name [$name] has already been registered",
         )
-        migrationHooks += AfterAllMigrations(name = name, action = action)
+        migrationHooks += AfterAllMigrations(name = name, priority = priority, action = action)
     }
 
+    /**
+     * The main function of this class.  Establishes a connection to the database and runs all migrations, one by one,
+     * ensuring that before and after hooks are honored throughout the process.  After all migrations and hooks are
+     * run, the "after all" migration hooks are run in order of their given priorities.  Finally, the database
+     * connected to is then disconnected and removed from the app, ensuring that normal SpringBootTest tests that
+     * hook into an in-memory Sqlite database can run without conflict.
+     */
     fun testMigrations() {
         val dataConfig = DataConfig()
         val dataSource = dataConfig.dataSource(databaseProperties)
@@ -162,5 +206,9 @@ sealed interface DbMigrationHook {
         override val action: () -> Unit,
     ) : DbMigrationHook
 
-    data class AfterAllMigrations(override val name: String, override val action: () -> Unit) : DbMigrationHook
+    data class AfterAllMigrations(
+        override val name: String,
+        val priority: Int,
+        override val action: () -> Unit,
+    ) : DbMigrationHook
 }
