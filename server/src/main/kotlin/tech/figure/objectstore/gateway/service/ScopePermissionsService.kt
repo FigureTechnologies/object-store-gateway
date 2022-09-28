@@ -10,6 +10,7 @@ import tech.figure.objectstore.gateway.repository.ScopePermissionsRepository
 @Service
 class ScopePermissionsService(
     @Qualifier(BeanQualifiers.OBJECTSTORE_PRIVATE_KEYS) private val accountAddresses: Set<String>,
+    private val addressVerificationService: AddressVerificationService,
     private val scopeFetchService: ScopeFetchService,
     private val scopePermissionsRepository: ScopePermissionsRepository,
 ) {
@@ -44,6 +45,16 @@ class ScopePermissionsService(
     ): GrantResponse {
         return try {
             val logPrefix = "[GATEWAY GRANT ${if (sourceDetails != null) "($sourceDetails)" else ""}]:"
+            // Verify that the scope address and all provided addresses are valid bech32 before attempting to process
+            // then through the remaining portions of the function
+            verifyAddressFailures(
+                scopeAddress = scopeAddress,
+                accountAddresses = listOf(
+                    granteeAddress to "Grantee",
+                    *grantSourceAddresses.map { it to "Source Address" }.toTypedArray(),
+                    *additionalAuthorizedAddresses.map { it to "Additional Authorized Address" }.toTypedArray(),
+                ),
+            )?.also { failureMessage -> return GrantResponse.Rejected("$logPrefix $failureMessage") }
             val scopeResponse = scopeFetchService.fetchScope(
                 scopeAddress = scopeAddress,
                 includeSessions = true,
@@ -99,6 +110,16 @@ class ScopePermissionsService(
         sourceDetails: String? = null,
     ): RevokeResponse = try {
         val logPrefix = "[GATEWAY REVOKE ${if (sourceDetails != null) "($sourceDetails)" else ""}]:"
+        // Verify that the scope address and all provided addresses are valid bech32 before attempting to process
+        // then through the remaining portions of the function
+        verifyAddressFailures(
+            scopeAddress = scopeAddress,
+            accountAddresses = listOf(
+                granteeAddress to "Grantee",
+                *revokeSourceAddresses.map { it to "Source Address" }.toTypedArray(),
+                *additionalAuthorizedAddresses.map { it to "Additional Authorized Address" }.toTypedArray(),
+            ),
+        )?.also { failureMessage -> return RevokeResponse.Rejected("$logPrefix $failureMessage") }
         val scopeResponse = scopeFetchService.fetchScope(scopeAddress = scopeAddress)
         // TODO: Add authz reverse lookup to attempt to find additional authorized addresses.  The scope's value owner
         // may have granted other addresses the required privileges that should allow this to proceed
@@ -140,6 +161,31 @@ class ScopePermissionsService(
      * Extension function to determine if the value is contained in the registered object store deserialization addresses.
      */
     private fun String?.isWatchedAddress(): Boolean = this in accountAddresses
+
+    private fun verifyAddressFailures(
+        scopeAddress: String,
+        accountAddresses: List<Pair<String, String>>,
+    ): String? = listOfNotNull(
+        verifyAddress(
+            verification = addressVerificationService.verifyScopeAddress(scopeAddress),
+            verificationType = "Scope",
+        ),
+        *accountAddresses.mapNotNull { (accountAddress, verificationType) ->
+            verifyAddress(
+                verification = addressVerificationService.verifyAccountAddress(accountAddress),
+                verificationType = verificationType,
+            )
+        }.toTypedArray()
+    ).takeIf { it.isNotEmpty() }?.joinToString { it }
+
+    private fun verifyAddress(
+        verification: Bech32Verification,
+        verificationType: String,
+    ): String? = if (verification is Bech32Verification.Failure) {
+        "$verificationType Verification Failed for Address [${verification.address}]: ${verification.message}"
+    } else {
+        null
+    }
 }
 
 /**
