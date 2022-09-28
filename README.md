@@ -315,3 +315,10 @@ OPTIONAL | Boolean | Default = false
 The value used for Flyway's baselineOnMigrate functionality.  This value determines if flyway should run migrations from
 its baseline version on an existing database.  See the [Flyway documentation](https://flywaydb.org/documentation/configuration/parameters/baselineOnMigrate)
 on this value for more information.
+
+### DB_REPAIR_FLYWAY_CHECKSUMS
+OPTIONAL | Boolean | Default = false
+
+This value will cause the Flyway repair functionality to be run before migrations occur.  This is an admin-only 
+functionality that is only needed if previous migration files needed to be edited after they have already been run for 
+an existing database instance.

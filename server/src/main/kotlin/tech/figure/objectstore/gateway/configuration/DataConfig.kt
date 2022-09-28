@@ -63,6 +63,7 @@ class DataConfig {
             transaction {
                 if (databaseProperties.type == "postgresql") {
                     try {
+                        logger.info("Attempting schema creation with name [${databaseProperties.schema}] for db [${databaseProperties.name}]")
                         SchemaUtils.createSchema(Schema(databaseProperties.schema))
                     } catch (e: Exception) {
                         logger.warn("Exception creating schema [${databaseProperties.schema}]: ${e.message}")
@@ -73,12 +74,14 @@ class DataConfig {
         }
 
     @Bean
-    fun flyway(dataSource: DataSource, databaseProperties: DatabaseProperties): Flyway = Flyway(
+    fun flywayConfig(dataSource: DataSource, databaseProperties: DatabaseProperties): FluentConfiguration =
         FluentConfiguration().dataSource(dataSource).baselineOnMigrate(databaseProperties.baselineOnMigrate)
             // Dynamically set the location for migration files based on the database type, allowing for multiple
             // dialects to specify their own migrations as necessary
             .locations("db/migration/common", "db/migration/${databaseProperties.type}")
-    ).apply {
+
+    @Bean
+    fun flyway(fluentConfiguration: FluentConfiguration, databaseProperties: DatabaseProperties): Flyway = Flyway(fluentConfiguration).apply {
         if (databaseProperties.type != "postgresql") {
             baseline()
         }
@@ -88,7 +91,11 @@ class DataConfig {
     fun flywayInitializer(flyway: Flyway): FlywayMigrationInitializer = FlywayMigrationInitializer(flyway)
 
     @Bean("MigrationsExecuted")
-    fun flywayMigration(dataSource: DataSource, flyway: Flyway): Int {
+    fun flywayMigration(dataSource: DataSource, databaseProperties: DatabaseProperties, flyway: Flyway): Int {
+        if (databaseProperties.repairFlywayChecksums) {
+            logger.warn("Flyway checksum repair has been requested! This should only be enabled temporarily. Set db.repairFlywayChecks=false or omit the value ASAP")
+            flyway.repair()
+        }
         flyway.info().all().forEach { logger.info("Flyway migration: ${it.script}") }
         return flyway.migrate().migrationsExecuted
     }
