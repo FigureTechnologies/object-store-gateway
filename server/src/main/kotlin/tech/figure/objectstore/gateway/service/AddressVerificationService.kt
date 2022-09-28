@@ -87,6 +87,6 @@ sealed interface Bech32Verification {
     data class Failure(
         override val address: String,
         val cause: Exception? = null,
-        val message: String = cause?.message ?: "Bech32 validation failed for input address [$address]",
+        val message: String = cause?.message ?: "Bech32 verification failed for input address [$address]",
     ) : Bech32Verification
 }
