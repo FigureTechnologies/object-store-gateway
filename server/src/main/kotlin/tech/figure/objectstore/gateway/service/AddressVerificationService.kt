@@ -51,9 +51,11 @@ class AddressVerificationService(private val provenanceProperties: ProvenancePro
      * input address's hrp does not match this value.
      */
     private fun validateBech32Address(address: String, expectedHrp: String): Bech32Verification = try {
-        val bech32Data = Bech32.decode(address)
-        if (bech32Data.hrp == expectedHrp) {
-            Success(address = address, hrp = bech32Data.hrp)
+        val derivedHrp = Bech32.decode(address).hrp.lowercase()
+        // Bech32 is valid if it is all uppercase or all lowercase.  Normalize case to ensure the input is not rejected
+        // for simply being a different format
+        if (derivedHrp == expectedHrp.lowercase()) {
+            Success(address = address, hrp = derivedHrp)
         } else {
             Failure(address = address, message = "Expected hrp [$expectedHrp] for address [$address]")
         }

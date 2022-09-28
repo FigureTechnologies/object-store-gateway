@@ -27,8 +27,14 @@ class AddressVerificationServiceTest {
             verification = service.verifyAccountAddress(testnetAddress),
             expectedMessage = "Expected hrp [pb] for address [$testnetAddress]",
         )
+        // Verifies that lowercase input does not cause any issues
         assertSuccessfulValidation(
-            verification = service.verifyAccountAddress(genRandomAccount(testnet = false).bech32Address),
+            verification = service.verifyAccountAddress(genRandomAccount(testnet = false).bech32Address.lowercase()),
+            expectedHrp = "pb",
+        )
+        // Verifies that uppercase input does not cause any issues
+        assertSuccessfulValidation(
+            verification = service.verifyAccountAddress(genRandomAccount(testnet = false).bech32Address.uppercase()),
             expectedHrp = "pb",
         )
     }
@@ -47,8 +53,14 @@ class AddressVerificationServiceTest {
             verification = service.verifyAccountAddress(mainnetAddress),
             expectedMessage = "Expected hrp [tp] for address [$mainnetAddress]",
         )
+        // Verifies that lowercase input does not cause any issues
         assertSuccessfulValidation(
-            verification = service.verifyAccountAddress(genRandomAccount(testnet = true).bech32Address),
+            verification = service.verifyAccountAddress(genRandomAccount(testnet = true).bech32Address.lowercase()),
+            expectedHrp = "tp",
+        )
+        // Verifies that uppercase input does not cause any issues
+        assertSuccessfulValidation(
+            verification = service.verifyAccountAddress(genRandomAccount(testnet = true).bech32Address.uppercase()),
             expectedHrp = "tp",
         )
     }
