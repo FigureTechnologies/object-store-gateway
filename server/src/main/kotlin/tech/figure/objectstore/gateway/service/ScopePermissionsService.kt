@@ -162,23 +162,32 @@ class ScopePermissionsService(
      */
     private fun String?.isWatchedAddress(): Boolean = this in accountAddresses
 
+    /**
+     * Verifies that all input addresses are valid bech32.  If any failures are detected, all failure messages are
+     * concatenated via CSV (default joinToString separator) and emitted.  If no failures are detected, the response
+     * will be null.
+     */
     private fun verifyAddressFailures(
         scopeAddress: String,
         accountAddresses: List<Pair<String, String>>,
     ): String? = listOfNotNull(
-        verifyAddress(
+        formatVerificationFailureOrNull(
             verification = addressVerificationService.verifyScopeAddress(scopeAddress),
             verificationType = "Scope",
         ),
         *accountAddresses.mapNotNull { (accountAddress, verificationType) ->
-            verifyAddress(
+            formatVerificationFailureOrNull(
                 verification = addressVerificationService.verifyAccountAddress(accountAddress),
                 verificationType = verificationType,
             )
         }.toTypedArray()
     ).takeIf { it.isNotEmpty() }?.joinToString { it }
 
-    private fun verifyAddress(
+    /**
+     * Creates a human-readable error message indicating the nature of a bech32 verification failure.  If no failure
+     * is detected, null is returned.
+     */
+    private fun formatVerificationFailureOrNull(
         verification: Bech32Verification,
         verificationType: String,
     ): String? = if (verification is Bech32Verification.Failure) {

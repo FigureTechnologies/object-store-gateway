@@ -6,11 +6,11 @@ import io.provenance.hdwallet.wallet.Account
 import io.provenance.metadata.v1.PartyType
 import io.provenance.metadata.v1.ScopeResponse
 import io.provenance.scope.util.MetadataAddress
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.SpringBootTest
+import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
 import tech.figure.objectstore.gateway.helpers.bech32Address
 import tech.figure.objectstore.gateway.helpers.genRandomAccount
 import tech.figure.objectstore.gateway.helpers.mockScopeResponse
@@ -26,18 +26,20 @@ import kotlin.test.assertTrue
 
 @SpringBootTest
 class ScopePermissionsServiceTest {
-    // Services
+    // Spring Components
+    lateinit var addressVerificationService: AddressVerificationService
     lateinit var scopeFetchService: ScopeFetchService
     lateinit var scopePermissionsRepository: ScopePermissionsRepository
     lateinit var service: ScopePermissionsService
+    lateinit var provenanceProperties: ProvenanceProperties
 
     // Addresses
     private val scopeOwner: Account = genRandomAccount()
     private val scopeAddress: String = MetadataAddress.forScope(UUID.randomUUID()).toString()
-    private val ownerGranter: String = "ownerGranter"
-    private val dataAccessGranter: String = "dataAccessGranter"
-    private val sessionGranter: String = "sessionGranter"
-    private val defaultGrantee: String = "grantee"
+    private val ownerGranter: String = genRandomAccount().bech32Address
+    private val dataAccessGranter: String = genRandomAccount().bech32Address
+    private val sessionGranter: String = genRandomAccount().bech32Address
+    private val defaultGrantee: String = genRandomAccount().bech32Address
 
     fun setUp(
         accountAddresses: Set<String> = setOf(ownerGranter),
@@ -54,9 +56,13 @@ class ScopePermissionsServiceTest {
     ) {
         scopeFetchService = mockk()
         scopePermissionsRepository = ScopePermissionsRepository()
+        provenanceProperties = mockk()
         every { scopeFetchService.fetchScope(any(), any(), any()) } returns scopeResponse
+        every { provenanceProperties.mainNet } returns false
+        addressVerificationService = AddressVerificationService(provenanceProperties = provenanceProperties)
         service = ScopePermissionsService(
             accountAddresses = accountAddresses,
+            addressVerificationService = addressVerificationService,
             scopeFetchService = scopeFetchService,
             scopePermissionsRepository = scopePermissionsRepository,
         )
@@ -89,6 +95,44 @@ class ScopePermissionsServiceTest {
             actual = "Skipping grant. None of the authorized addresses [${scopeOwner.bech32Address}] for this grant were in the addresses that requested it" in response.message,
             message = "Expected the correct rejection message to be included, but got: ${response.message}",
         )
+    }
+
+    @Test
+    fun `processAccessGrant rejects requests with malformed bech32 addresses`() {
+        setUp()
+        val testExpectedRejectionForHrp = { response: GrantResponse, addr: String, expectedName: String, expectedHrp: String ->
+            assertTrue(
+                actual = response is GrantResponse.Rejected,
+                message = "$expectedName: The response should be rejected when a bad address is provided",
+            )
+            assertTrue(
+                actual = "$expectedName Verification Failed for Address [$addr]: Expected hrp [$expectedHrp] for address [$addr]" in response.message,
+                message = "Unexpected rejection message for $expectedName: ${response.message}",
+            )
+        }
+        val invalidScopeAddress = genRandomAccount().bech32Address
+        val scopeResponse = doAccessGrant(scopeAddr = invalidScopeAddress)
+        testExpectedRejectionForHrp(scopeResponse, invalidScopeAddress, "Scope", "scope")
+
+        val invalidAccountAddress = MetadataAddress.forScope(UUID.randomUUID()).toString()
+        val granteeResponse = doAccessGrant(grantee = invalidAccountAddress)
+        testExpectedRejectionForHrp(granteeResponse, invalidAccountAddress, "Grantee", "tp")
+
+        // Proves that one of many bad addresses will still get picked up
+        val sourceResponse = doAccessGrant(sources = setOf(invalidAccountAddress, scopeOwner.bech32Address))
+        testExpectedRejectionForHrp(sourceResponse, invalidAccountAddress, "Source Address", "tp")
+
+        // Proves that one of many bad addresses will still get picked up
+        val additionalAuthResponse = doAccessGrant(additionalAddresses = setOf(scopeOwner.bech32Address, invalidAccountAddress))
+        testExpectedRejectionForHrp(additionalAuthResponse, invalidAccountAddress, "Additional Authorized Address", "tp")
+
+        // Proves that multiple bad inputs will be rejected and info about all failures will be emitted
+        val multipleFailureResponse = doAccessGrant(
+            scopeAddr = invalidScopeAddress,
+            grantee = invalidAccountAddress,
+        )
+        testExpectedRejectionForHrp(multipleFailureResponse, invalidScopeAddress, "Scope", "scope")
+        testExpectedRejectionForHrp(multipleFailureResponse, invalidAccountAddress, "Grantee", "tp")
     }
 
     @Test
@@ -131,6 +175,44 @@ class ScopePermissionsServiceTest {
         setUp()
         val response = doAccessGrant(grantId = "my-grant-id")
         assertGrantResponseAccepted(response = response, expectedGrantId = "my-grant-id")
+    }
+
+    @Test
+    fun `processAccessRevoke rejects requests with malformed bech32 addresses`() {
+        setUp()
+        val testExpectedRejectionForHrp = { response: RevokeResponse, addr: String, expectedName: String, expectedHrp: String ->
+            assertTrue(
+                actual = response is RevokeResponse.Rejected,
+                message = "$expectedName: The response should be rejected when a bad address is provided",
+            )
+            assertTrue(
+                actual = "$expectedName Verification Failed for Address [$addr]: Expected hrp [$expectedHrp] for address [$addr]" in response.message,
+                message = "Unexpected rejection message for $expectedName: ${response.message}",
+            )
+        }
+        val invalidScopeAddress = genRandomAccount().bech32Address
+        val scopeResponse = doAccessRevoke(scopeAddr = invalidScopeAddress)
+        testExpectedRejectionForHrp(scopeResponse, invalidScopeAddress, "Scope", "scope")
+
+        val invalidAccountAddress = MetadataAddress.forScope(UUID.randomUUID()).toString()
+        val granteeResponse = doAccessRevoke(grantee = invalidAccountAddress)
+        testExpectedRejectionForHrp(granteeResponse, invalidAccountAddress, "Grantee", "tp")
+
+        // Proves that one of many bad addresses will still get picked up
+        val sourceResponse = doAccessRevoke(sources = setOf(invalidAccountAddress, scopeOwner.bech32Address))
+        testExpectedRejectionForHrp(sourceResponse, invalidAccountAddress, "Source Address", "tp")
+
+        // Proves that one of many bad addresses will still get picked up
+        val additionalAuthResponse = doAccessRevoke(additionalAddresses = setOf(scopeOwner.bech32Address, invalidAccountAddress))
+        testExpectedRejectionForHrp(additionalAuthResponse, invalidAccountAddress, "Additional Authorized Address", "tp")
+
+        // Proves that multiple bad inputs will be rejected and info about all failures will be emitted
+        val multipleFailureResponse = doAccessRevoke(
+            scopeAddr = invalidScopeAddress,
+            grantee = invalidAccountAddress,
+        )
+        testExpectedRejectionForHrp(multipleFailureResponse, invalidScopeAddress, "Scope", "scope")
+        testExpectedRejectionForHrp(multipleFailureResponse, invalidAccountAddress, "Grantee", "tp")
     }
 
     @Test
@@ -205,7 +287,7 @@ class ScopePermissionsServiceTest {
     }
 
     @Test
-    fun `StreamEventHandlerService removes grant id specifically upon request`() {
+    fun `processAccessRevoke removes grant id specifically upon request`() {
         setUp()
 
         val firstGrantId = "first-grant"

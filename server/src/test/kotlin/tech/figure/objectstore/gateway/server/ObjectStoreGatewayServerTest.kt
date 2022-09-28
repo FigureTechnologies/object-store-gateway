@@ -14,6 +14,7 @@ import io.provenance.hdwallet.wallet.Account
 import io.provenance.metadata.v1.PartyType
 import io.provenance.scope.encryption.ecies.ProvenanceKeyGenerator
 import io.provenance.scope.encryption.util.getAddress
+import io.provenance.scope.util.MetadataAddress
 import io.provenance.scope.util.sha256String
 import io.provenance.scope.util.toByteString
 import org.jetbrains.exposed.sql.deleteAll
@@ -28,6 +29,7 @@ import tech.figure.objectstore.gateway.GatewayOuterClass.GrantScopePermissionRes
 import tech.figure.objectstore.gateway.GatewayOuterClass.RevokeScopePermissionRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.RevokeScopePermissionResponse
 import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
+import tech.figure.objectstore.gateway.helpers.bech32Address
 import tech.figure.objectstore.gateway.helpers.createErrorSlot
 import tech.figure.objectstore.gateway.helpers.genRandomAccount
 import tech.figure.objectstore.gateway.helpers.getValidFetchObjectByHashRequest
@@ -40,16 +42,19 @@ import tech.figure.objectstore.gateway.helpers.objectFromParts
 import tech.figure.objectstore.gateway.helpers.queryGrantCount
 import tech.figure.objectstore.gateway.model.ScopePermissionsTable
 import tech.figure.objectstore.gateway.repository.ScopePermissionsRepository
+import tech.figure.objectstore.gateway.service.AddressVerificationService
 import tech.figure.objectstore.gateway.service.ObjectService
 import tech.figure.objectstore.gateway.service.ScopeFetchService
 import tech.figure.objectstore.gateway.service.ScopePermissionsService
 import java.security.KeyPair
+import java.util.UUID
 import kotlin.random.Random
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 @SpringBootTest
 class ObjectStoreGatewayServerTest {
+    lateinit var addressVerificationService: AddressVerificationService
     lateinit var scopeFetchService: ScopeFetchService
     lateinit var scopePermissionsService: ScopePermissionsService
     lateinit var scopePermissionsRepository: ScopePermissionsRepository
@@ -60,9 +65,9 @@ class ObjectStoreGatewayServerTest {
 
     lateinit var server: ObjectStoreGatewayServer
 
-    val defaultGranter: String = "accessGranter"
-    val scopeAddress = "scopeAddress"
-    val defaultGrantee = "grantee"
+    val defaultGranter: String = genRandomAccount().bech32Address
+    val scopeAddress = MetadataAddress.forScope(UUID.randomUUID()).toString()
+    val defaultGrantee = genRandomAccount().bech32Address
 
     @BeforeEach
     fun clearDb() {
@@ -77,6 +82,7 @@ class ObjectStoreGatewayServerTest {
         scopePermissionsRepository = ScopePermissionsRepository()
         objectService = mockk()
         provenanceProperties = mockk()
+        addressVerificationService = AddressVerificationService(provenanceProperties = provenanceProperties)
 
         every { provenanceProperties.mainNet } returns false
 
@@ -87,6 +93,7 @@ class ObjectStoreGatewayServerTest {
 
         scopePermissionsService = ScopePermissionsService(
             accountAddresses = accountAddresses,
+            addressVerificationService = addressVerificationService,
             scopeFetchService = scopeFetchService,
             scopePermissionsRepository = scopePermissionsRepository,
         )
