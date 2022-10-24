@@ -7,11 +7,11 @@ import io.provenance.hdwallet.wallet.Wallet
 import io.provenance.scope.encryption.model.DirectKeyRef
 import io.provenance.scope.encryption.model.KeyRef
 
-fun genRandomAccount(): Account = Wallet.fromMnemonic(
-    hrp = "tp",
+fun genRandomAccount(testnet: Boolean = true): Account = Wallet.fromMnemonic(
+    hrp = if (testnet) "tp" else "pb",
     passphrase = "",
     mnemonicWords = MnemonicWords.generate(strength = 256),
-    testnet = true,
+    testnet = testnet,
 )["m/44'/1'/0'/0/0'"]
 
 val Account.bech32Address: String

@@ -13,6 +13,7 @@ import io.provenance.hdwallet.ec.extensions.toJavaECPublicKey
 import io.provenance.hdwallet.wallet.Account
 import io.provenance.metadata.v1.PartyType
 import io.provenance.scope.encryption.ecies.ECUtils
+import io.provenance.scope.util.MetadataAddress
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.deleteAll
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -32,6 +33,7 @@ import tech.figure.objectstore.gateway.repository.ScopePermissionsRepository
 import tech.figure.objectstore.gateway.util.toByteString
 import java.time.OffsetDateTime
 import java.util.Base64
+import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.fail
@@ -39,14 +41,15 @@ import kotlin.test.fail
 @SpringBootTest
 class StreamEventHandlerServiceTest {
     val onboardingOwner: Account = genRandomAccount() // Access the standard testnet account address
-    val priorityOwnerAddress = "prioritizedOwner" // This is the first value located in ScopePermissionsService.findRegisteredScopeOwnerAddress(), and will be the granter in most circumstances
-    val sessionPartyAddress = "sessionParty"
-    val dataAccessAddress = "dataAccess"
+    val priorityOwnerAddress = genRandomAccount().bech32Address // This is the first value located in ScopePermissionsService.findRegisteredScopeOwnerAddress(), and will be the granter in most circumstances
+    val sessionPartyAddress = genRandomAccount().bech32Address
+    val dataAccessAddress = genRandomAccount().bech32Address
     val grantee: Account = genRandomAccount()
-    val scopeAddress = "scopeAddress"
+    val scopeAddress = MetadataAddress.forScope(UUID.randomUUID()).toString()
 
     lateinit var pbClient: PbClient
     lateinit var provenanceProperties: ProvenanceProperties
+    lateinit var addressVerificationService: AddressVerificationService
     lateinit var scopeFetchService: ScopeFetchService
     lateinit var scopePermissionsService: ScopePermissionsService
     lateinit var scopePermissionsRepository: ScopePermissionsRepository
@@ -65,6 +68,7 @@ class StreamEventHandlerServiceTest {
         pbClient = mockk()
         scopeFetchService = mockk()
         provenanceProperties = mockk()
+        addressVerificationService = AddressVerificationService(provenanceProperties = provenanceProperties)
 
         every { provenanceProperties.mainNet } returns false
         every { scopeFetchService.fetchScope(any(), any(), any()) } returns mockScopeResponse(
@@ -91,6 +95,7 @@ class StreamEventHandlerServiceTest {
 
         scopePermissionsService = ScopePermissionsService(
             accountAddresses = watchedAddresses.toSet(),
+            addressVerificationService = addressVerificationService,
             scopeFetchService = scopeFetchService,
             scopePermissionsRepository = scopePermissionsRepository,
         )
