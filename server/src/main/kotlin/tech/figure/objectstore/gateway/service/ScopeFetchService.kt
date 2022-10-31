@@ -17,7 +17,6 @@ import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
 import tech.figure.objectstore.gateway.exception.AccessDeniedException
 import tech.figure.objectstore.gateway.repository.ScopePermissionsRepository
 import tech.figure.objectstore.gateway.util.toByteString
-import tech.figure.objectstore.gateway.util.toOwnerParty
 import java.security.PublicKey
 
 @Component
@@ -62,11 +61,14 @@ class ScopeFetchService(
 
         val scopeResponse = fetchScope(scopeAddress = scopeAddress, includeRecords = true)
 
-        // If the requester is registered in the service and they own the scope, there's no reason they can't decrypt their own
-        // data
+        // If the requester is registered in the service and they are a scope owner, there's no reason they can't decrypt their own data
         val encryptionKey = encryptionKeys[requesterAddress]
             // a scope owner can request their own scope data
-            ?.takeIf { scopeResponse.scope.scope.ownersList.contains(requesterAddress.toOwnerParty()) || scopeResponse.scope.scope.valueOwnerAddress == requesterAddress }
+            ?.takeIf {
+                scopeResponse.scope.scope.ownersList.any { owner -> owner.address == requesterAddress } ||
+                    scopeResponse.scope.scope.dataAccessList.any { da -> da == requesterAddress } ||
+                    scopeResponse.scope.scope.valueOwnerAddress == requesterAddress
+            }
             ?.also { logger.debug("Received request for scope data from scope owner [scope: $scopeAddress, owner: $requesterAddress]") }
             // If the requester does not own the scope and/or their encryption key is not stored, attempt to find an access grant
             ?: run {

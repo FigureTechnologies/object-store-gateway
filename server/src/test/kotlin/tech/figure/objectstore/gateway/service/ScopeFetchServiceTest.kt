@@ -5,6 +5,8 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.provenance.client.grpc.PbClient
+import io.provenance.metadata.v1.Party
+import io.provenance.metadata.v1.PartyType
 import io.provenance.metadata.v1.Process
 import io.provenance.metadata.v1.Record
 import io.provenance.metadata.v1.RecordInput
@@ -17,6 +19,7 @@ import io.provenance.scope.encryption.model.KeyRef
 import io.provenance.scope.encryption.util.getAddress
 import io.provenance.scope.objectstore.client.CachedOsClient
 import io.provenance.scope.objectstore.util.base64Decode
+import io.provenance.scope.util.MetadataAddress
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -25,8 +28,10 @@ import tech.figure.objectstore.gateway.exception.AccessDeniedException
 import tech.figure.objectstore.gateway.repository.ScopePermissionsRepository
 import tech.figure.objectstore.gateway.util.toByteString
 import tech.figure.objectstore.gateway.util.toOwnerParty
+import tech.figure.objectstore.gateway.util.toPartyType
 import java.io.ByteArrayInputStream
 import java.net.URI
+import java.util.UUID
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -49,7 +54,9 @@ class ScopeFetchServiceTest {
         }
     }.toMap()
 
-    fun generateScope(numRecords: Int, ownerKey: Pair<String, DirectKeyRef> = scopeOwnerKey) = ScopeResponse.newBuilder()
+    fun randomScopeAddress() = MetadataAddress.forScope(UUID.randomUUID()).toString()
+
+    fun generateScope(numRecords: Int, scopeAddress: String = randomScopeAddress(), ownerKey: Pair<String, DirectKeyRef> = scopeOwnerKey) = ScopeResponse.newBuilder()
         .addAllRecords(
             (1..numRecords).map {
                 val prefix = "record$it"
@@ -77,10 +84,23 @@ class ScopeFetchServiceTest {
             scopeBuilder.scopeBuilder
                 .addOwners(ownerKey.first.toOwnerParty())
                 .setValueOwnerAddress(ownerKey.first)
+            scopeBuilder.scopeIdInfoBuilder.scopeAddr = scopeAddress
         }
         .build()
 
+    fun ScopeResponse.replaceOwners(vararg newOwners: Party): ScopeResponse = toBuilder().apply {
+        scopeBuilder.scopeBuilder.clearOwners()
+            .addAllOwners(newOwners.toList())
+    }.build()
+
+    fun ScopeResponse.replaceDataAccessList(vararg addresses: String): ScopeResponse = toBuilder().apply {
+        scopeBuilder.scopeBuilder.clearDataAccess()
+            .addAllDataAccess(addresses.toList())
+    }.build()
+
     fun String.toHash() = if (length % 2 == 0) this else padEnd(length + 1, '0')
+
+    fun PbClient.setScope(scope: ScopeResponse) = every { pbClient.metadataClient.scope(match { it.scopeId == scope.scope.scopeIdInfo.scopeAddr }) } returns scope
 
     @BeforeEach
     fun setUp() {
@@ -90,7 +110,8 @@ class ScopeFetchServiceTest {
         encryptionKeys = generateEncryptionKeys(2)
         provenanceProperties = ProvenanceProperties(false, "pio-fakenet-1", URI(""))
 
-        every { pbClient.metadataClient.scope(any()) } returns generateScope(2)
+        // set default scope for tests
+        pbClient.setScope(generateScope(2, scopeAddress = scopeAddress))
 
         val hashSlot = slot<ByteArray>()
         every { objectStoreClient.getJar(capture(hashSlot), any()) } answers { Futures.immediateFuture(ByteArrayInputStream(hashSlot.captured)) }
@@ -118,6 +139,44 @@ class ScopeFetchServiceTest {
         val encryptionPublicKey = scopeOwnerKey.second.publicKey
 
         val records = service.fetchScopeForGrantee(scopeAddress, encryptionPublicKey, null)
+
+        assertEquals(2, records.size)
+        records.forEachIndexed { i, record ->
+            val prefix = "record${i + 1}"
+            assertEquals("${prefix}Name", record.name)
+            assertEquals("${prefix}InputHash".toHash(), record.inputsList.first().hash)
+            assertEquals("${prefix}InputHash".toHash().base64Decode().toByteString(), record.inputsList.first().objectBytes)
+            assertEquals("${prefix}OutputHash".toHash(), record.outputsList.first().hash)
+            assertEquals("${prefix}OutputHash".toHash().base64Decode().toByteString(), record.outputsList.first().objectBytes)
+        }
+    }
+
+    @Test
+    fun `fetchScope should allow access for a non-OWNER-type scope owner even when no scope access is set up and owner is in encryption keys`() {
+        val encryptionPublicKey = encryptionKeys.values.first().publicKey
+        val generatedScopeAddress = randomScopeAddress()
+        pbClient.setScope(generateScope(2, scopeAddress = generatedScopeAddress).replaceOwners(encryptionPublicKey.getAddress(false).toPartyType(PartyType.PARTY_TYPE_CUSTODIAN)))
+
+        val records = service.fetchScopeForGrantee(generatedScopeAddress, encryptionPublicKey, null)
+
+        assertEquals(2, records.size)
+        records.forEachIndexed { i, record ->
+            val prefix = "record${i + 1}"
+            assertEquals("${prefix}Name", record.name)
+            assertEquals("${prefix}InputHash".toHash(), record.inputsList.first().hash)
+            assertEquals("${prefix}InputHash".toHash().base64Decode().toByteString(), record.inputsList.first().objectBytes)
+            assertEquals("${prefix}OutputHash".toHash(), record.outputsList.first().hash)
+            assertEquals("${prefix}OutputHash".toHash().base64Decode().toByteString(), record.outputsList.first().objectBytes)
+        }
+    }
+
+    @Test
+    fun `fetchScope should allow access for a scope data access address even when no scope access is set up and data access owner is in encryption keys`() {
+        val encryptionPublicKey = encryptionKeys.values.first().publicKey
+        val generatedScopeAddress = randomScopeAddress()
+        pbClient.setScope(generateScope(2, scopeAddress = generatedScopeAddress).replaceDataAccessList(encryptionPublicKey.getAddress(false)))
+
+        val records = service.fetchScopeForGrantee(generatedScopeAddress, encryptionPublicKey, null)
 
         assertEquals(2, records.size)
         records.forEachIndexed { i, record ->

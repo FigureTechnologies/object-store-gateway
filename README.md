@@ -230,6 +230,8 @@ A CSV list of hex-encoded Private Keys that belong to the Provenance Blockchain 
 additional audiences when encoding Provenance Blockchain Scope Records to the [Provenance Encrypted Object Store](https://github.com/provenance-io/object-store)
 instance referred to by [OBJECTSTORE_URI](#OBJECTSTORE_URI).
 
+**note: The hex encoding format of these keys is the hex-encoding of the serialized [p8e private key proto](https://github.com/provenance-io/p8e-scope-sdk/blob/main/proto/src/main/proto/public_key.proto#L35).**
+
 ### OBJECTSTORE_MASTER_KEY
 REQUIRED | String
 
@@ -237,6 +239,8 @@ A hex-encoded PrivateKey that belongs to a Provenance Blockchain Account that sh
 Object Store Gateway instance.  This value is uniquely given access to create and manage data access accounts, as well
 as being able to manually add and revoke scope access grants.  Due to this, it is vital that the holder of this key be
 a trusted entity in an organization.
+
+**note: The hex encoding format of this key is the hex-encoding of the serialized [p8e private key proto](https://github.com/provenance-io/p8e-scope-sdk/blob/main/proto/src/main/proto/public_key.proto#L35).**
 
 ### PROVENANCE_MAIN_NET
 REQUIRED | Boolean
