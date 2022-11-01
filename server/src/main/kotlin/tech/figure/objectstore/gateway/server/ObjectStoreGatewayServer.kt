@@ -5,6 +5,7 @@ import io.grpc.StatusRuntimeException
 import io.grpc.stub.StreamObserver
 import io.provenance.scope.encryption.model.KeyRef
 import io.provenance.scope.encryption.util.getAddress
+import io.provenance.scope.encryption.util.toPublicKey
 import mu.KLogging
 import org.lognet.springboot.grpc.GRpcService
 import org.springframework.beans.factory.annotation.Qualifier
@@ -55,7 +56,7 @@ class ObjectStoreGatewayServer(
         request: GatewayOuterClass.PutObjectRequest,
         responseObserver: StreamObserver<GatewayOuterClass.PutObjectResponse>
     ) {
-        objectService.putObject(request.`object`, publicKey()).let {
+        objectService.putObject(request.`object`, publicKey(), request.additionalAudienceKeysList.map { it.toPublicKey() }).let {
             responseObserver.onNext(
                 GatewayOuterClass.PutObjectResponse.newBuilder()
                     .setHash(it)

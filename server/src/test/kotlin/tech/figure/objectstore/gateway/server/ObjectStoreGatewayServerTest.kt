@@ -14,6 +14,8 @@ import io.provenance.hdwallet.wallet.Account
 import io.provenance.metadata.v1.PartyType
 import io.provenance.scope.encryption.ecies.ProvenanceKeyGenerator
 import io.provenance.scope.encryption.util.getAddress
+import io.provenance.scope.encryption.util.toPublicKey
+import io.provenance.scope.sdk.toPublicKeyProto
 import io.provenance.scope.util.MetadataAddress
 import io.provenance.scope.util.sha256String
 import io.provenance.scope.util.toByteString
@@ -158,15 +160,27 @@ class ObjectStoreGatewayServerTest {
         testSuccessfulPutObject(getValidPutObjectRequest("cool_type"))
     }
 
+    @Test
+    fun `putObject should pass through additional audience public keys to service`() {
+        setUpBaseServices()
+        val someKey = ProvenanceKeyGenerator.generateKeyPair().public.toPublicKeyProto()
+        val request = getValidPutObjectRequest().toBuilder()
+            .addAdditionalAudienceKeys(someKey)
+            .build()
+
+        testSuccessfulPutObject(request)
+    }
+
     fun testSuccessfulPutObject(request: GatewayOuterClass.PutObjectRequest) {
         val responseObserver: StreamObserver<GatewayOuterClass.PutObjectResponse> = mockkObserver()
 
         val byteHash = request.`object`.toByteArray().sha256String()
-        every { objectService.putObject(request.`object`, keyPair.public) } returns byteHash
+        every { objectService.putObject(request.`object`, keyPair.public, request.additionalAudienceKeysList.map { it.toPublicKey() }) } returns byteHash
 
         server.putObject(request, responseObserver)
 
         verifyAll {
+            objectService.putObject(request.`object`, keyPair.public, request.additionalAudienceKeysList.map { it.toPublicKey() })
             responseObserver.onNext(
                 GatewayOuterClass.PutObjectResponse.newBuilder()
                     .setHash(byteHash)
