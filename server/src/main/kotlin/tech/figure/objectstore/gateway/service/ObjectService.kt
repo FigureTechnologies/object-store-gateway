@@ -35,16 +35,16 @@ class ObjectService(
         val objectBytes = obj.toByteArray()
         val objectSize = objectBytes.size.toLong()
 
-        val additionalAudiences = setOf(requesterPublicKey) + additionalAudienceKeys
+        val requesterAndAdditionalAudienceKeys = setOf(requesterPublicKey) + additionalAudienceKeys
 
         return objectStoreClient.osClient.put(
             ByteArrayInputStream(objectBytes),
             masterKey.publicKey,
             masterKey.signer(),
             objectSize,
-            additionalAudiences,
+            requesterAndAdditionalAudienceKeys,
         ).get().hash.toByteArray().base64String().also { hash ->
-            additionalAudiences.forEach {
+            requesterAndAdditionalAudienceKeys.forEach {
                 objectPermissionsRepository.addAccessPermission(hash, it.getAddress(provenanceProperties.mainNet), objectSize)
             }
         }
