@@ -85,6 +85,10 @@ class DataConfig {
         if (databaseProperties.type != "postgresql") {
             baseline()
         }
+        if (databaseProperties.repairFlywayChecksums) {
+            logger.warn("Flyway checksum repair has been requested! This should only be enabled temporarily. Set db.repairFlywayChecks=false or omit the value ASAP")
+            repair()
+        }
     }
 
     @Bean
@@ -92,10 +96,6 @@ class DataConfig {
 
     @Bean("MigrationsExecuted")
     fun flywayMigration(dataSource: DataSource, databaseProperties: DatabaseProperties, flyway: Flyway): Int {
-        if (databaseProperties.repairFlywayChecksums) {
-            logger.warn("Flyway checksum repair has been requested! This should only be enabled temporarily. Set db.repairFlywayChecks=false or omit the value ASAP")
-            flyway.repair()
-        }
         flyway.info().all().forEach { logger.info("Flyway migration: ${it.script}") }
         return flyway.migrate().migrationsExecuted
     }
