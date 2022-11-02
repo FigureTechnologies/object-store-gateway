@@ -3,6 +3,7 @@ package tech.figure.objectstore.gateway.service
 import com.google.common.util.concurrent.Futures
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verifyAll
 import io.provenance.objectstore.proto.Objects
 import io.provenance.scope.encryption.crypto.SignatureInputStream
 import io.provenance.scope.encryption.domain.inputstream.DIMEInputStream
@@ -89,6 +90,10 @@ class ObjectServiceTest {
         val response = objectService.putObject(obj, ownerKey)
 
         assertEquals(objectHash, response)
+        verifyAll {
+            osClient.osClient.put(any(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(ownerKey), mapOf(), any(), false)
+            objectPermissionsRepository.addAccessPermission(objectHash, ownerKey.getAddress(false), objectBytes.size.toLong())
+        }
     }
 
     @Test
@@ -108,6 +113,35 @@ class ObjectServiceTest {
         val response = objectService.putObject(obj, ownerKey)
 
         assertEquals(objectHash, response)
+        verifyAll {
+            osClient.osClient.put(any(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(ownerKey), mapOf(), any(), false)
+            objectPermissionsRepository.addAccessPermission(objectHash, ownerKey.getAddress(false), objectBytes.size.toLong())
+        }
+    }
+
+    @Test
+    fun `putObject should send object to object store with additional audience keys and insert permissions records for those keys' addresses`() {
+        val obj = randomObject("cool_type_bro")
+        val objectBytes = obj.toByteArray()
+        val objectHash = objectBytes.sha256String()
+        val otherKey = ProvenanceKeyGenerator.generateKeyPair().public
+
+        every { accountsRepository.isAddressEnabled(any()) } returns true
+
+        every { osClient.osClient.put(any(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(ownerKey, otherKey), mapOf(), any(), false) } returns Futures.immediateFuture(
+            Objects.ObjectResponse.newBuilder().setHash(objectHash.base64Decode().toByteString()).build()
+        )
+
+        every { objectPermissionsRepository.addAccessPermission(objectHash, any(), objectBytes.size.toLong()) } returns Unit
+
+        val response = objectService.putObject(obj, ownerKey, listOf(otherKey))
+
+        assertEquals(objectHash, response)
+        verifyAll {
+            listOf(ownerKey, otherKey).forEach {
+                objectPermissionsRepository.addAccessPermission(objectHash, it.getAddress(false), objectBytes.size.toLong())
+            }
+        }
     }
 
     @Test

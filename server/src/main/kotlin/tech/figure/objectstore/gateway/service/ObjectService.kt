@@ -26,7 +26,7 @@ class ObjectService(
     private val objectPermissionsRepository: ObjectPermissionsRepository,
     private val provenanceProperties: ProvenanceProperties,
 ) {
-    fun putObject(obj: GatewayOuterClass.ObjectWithMeta, requesterPublicKey: PublicKey): String {
+    fun putObject(obj: GatewayOuterClass.ObjectWithMeta, requesterPublicKey: PublicKey, additionalAudienceKeys: List<PublicKey> = listOf()): String {
         val requesterAddress = requesterPublicKey.getAddress(provenanceProperties.mainNet)
         if (!accountsRepository.isAddressEnabled(requesterAddress)) {
             throw AccessDeniedException("Object storage not granted to $requesterAddress")
@@ -35,14 +35,18 @@ class ObjectService(
         val objectBytes = obj.toByteArray()
         val objectSize = objectBytes.size.toLong()
 
+        val requesterAndAdditionalAudienceKeys = setOf(requesterPublicKey) + additionalAudienceKeys
+
         return objectStoreClient.osClient.put(
             ByteArrayInputStream(objectBytes),
             masterKey.publicKey,
             masterKey.signer(),
             objectSize,
-            setOf(requesterPublicKey),
+            requesterAndAdditionalAudienceKeys,
         ).get().hash.toByteArray().base64String().also { hash ->
-            objectPermissionsRepository.addAccessPermission(hash, requesterAddress, objectSize)
+            requesterAndAdditionalAudienceKeys.forEach {
+                objectPermissionsRepository.addAccessPermission(hash, it.getAddress(provenanceProperties.mainNet), objectSize)
+            }
         }
     }
 

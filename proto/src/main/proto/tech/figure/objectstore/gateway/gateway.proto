@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package tech.figure.objectstore.gateway;
 
+import 'public_key.proto';
+
 service Gateway {
   rpc FetchObject (FetchObjectRequest) returns (FetchObjectResponse) {};
   rpc PutObject (PutObjectRequest) returns (PutObjectResponse) {};
@@ -22,6 +24,7 @@ message FetchObjectResponse {
 
 message PutObjectRequest {
   ObjectWithMeta object = 1;
+  repeated io.provenance.scope.PublicKey additional_audience_keys = 2;
 }
 
 message PutObjectResponse {
