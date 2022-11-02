@@ -5,6 +5,7 @@ import io.grpc.Metadata
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder
 import io.grpc.stub.AbstractStub
 import io.grpc.stub.MetadataUtils
+import io.provenance.scope.sdk.toPublicKeyProto
 import io.provenance.scope.util.toByteString
 import tech.figure.objectstore.gateway.GatewayGrpc
 import tech.figure.objectstore.gateway.GatewayOuterClass
@@ -18,6 +19,7 @@ import tech.figure.objectstore.gateway.admin.Admin.FetchDataStorageAccountReques
 import tech.figure.objectstore.gateway.admin.Admin.PutDataStorageAccountRequest
 import tech.figure.objectstore.gateway.admin.GatewayAdminGrpc
 import java.io.Closeable
+import java.security.PublicKey
 import java.time.Duration
 import java.time.OffsetDateTime
 import java.util.concurrent.TimeUnit
@@ -70,6 +72,7 @@ class GatewayClient(val config: ClientConfig) : Closeable {
      * @param objectType (optional) the type of data that this represents. This is for reference at the time of retrieval if needed
      * @param jwt any instance of GatewayJwt for use in generating the proper JWT metadata for the request
      * @param timeout an optional timeout for the request that also controls the timeout for any generated jwt
+     * @param additionalAudienceKeys an optional list of additional public keys that should have access to this object via the gateway
      *
      * @return a proto containing the hash of the stored object. This hash can be used for future retrieval via [getObject].
      *  Note that this is not the hash of the provided objectBytes, but rather the sha256 hash of a serialized proto containing the provided objectBytes and objectType
@@ -79,6 +82,7 @@ class GatewayClient(val config: ClientConfig) : Closeable {
         objectType: String? = null,
         jwt: GatewayJwt,
         timeout: Duration = GatewayJwt.DEFAULT_TIMEOUT,
+        additionalAudienceKeys: List<PublicKey> = listOf()
     ): PutObjectResponse {
         return gatewayStub.withDeadline(Deadline.after(timeout.seconds, TimeUnit.SECONDS))
             .interceptJwt(jwt, timeout)
@@ -90,6 +94,7 @@ class GatewayClient(val config: ClientConfig) : Closeable {
                             objectBuilder.type = objectType
                         }
                     }
+                    .addAllAdditionalAudienceKeys(additionalAudienceKeys.map { it.toPublicKeyProto() })
                     .build()
             ).get()
     }
