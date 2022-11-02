@@ -61,6 +61,5 @@ class PostgresqlMigrationsTest {
         schema = "object-store-gateway",
         connectionPoolSize = "1",
         baselineOnMigrate = false,
-        repairFlywayChecksums = false,
     )
 }
