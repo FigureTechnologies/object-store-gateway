@@ -22,7 +22,6 @@ class MemoryMigrationsTest {
             schema = "object-store-gateway",
             connectionPoolSize = "1",
             baselineOnMigrate = false,
-            repairFlywayChecksums = false,
         )
         DbMigrationTester(properties).removeDatabaseTables().testMigrations()
     }
