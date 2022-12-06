@@ -9,6 +9,7 @@ service Gateway {
   rpc PutObject (PutObjectRequest) returns (PutObjectResponse) {};
   rpc FetchObjectByHash (FetchObjectByHashRequest) returns (FetchObjectByHashResponse) {};
   rpc GrantScopePermission (GrantScopePermissionRequest) returns (GrantScopePermissionResponse) {};
+  rpc BatchGrantScopePermission (BatchGrantScopePermissionRequest) returns (BatchGrantScopePermissionResponse) {};
   rpc RevokeScopePermission (RevokeScopePermissionRequest) returns (RevokeScopePermissionResponse) {};
 }
 
@@ -51,6 +52,16 @@ message GrantScopePermissionResponse {
   bool grant_accepted = 3; // If true, the grant was successfully added from the request
 }
 
+message BatchGrantScopePermissionRequest {
+  string scope_address = 1; // A bech32 scope address.  The account referenced by each grantee's grantee_address will receive read permissions through this service to the scope's underlying records
+  repeated ScopeGrantee grantees = 2; // Each grantee to receive scope permissions. Requests that do not include at least one record in this array, or requests containing invalid grantees will be rejected
+}
+
+message BatchGrantScopePermissionResponse {
+  BatchGrantScopePermissionRequest request = 1; // The request that evoked this response
+  repeated GrantScopePermissionResponse grant_responses = 2; // Details about each grant made in the batch
+}
+
 message RevokeScopePermissionRequest {
   string scope_address = 1; // A bech32 scope address.  All grants for this scope to the target grantee_address will be removed
   string grantee_address = 2; // A bech32 account address.  All grants that this account has received for the scope will be removed
@@ -66,6 +77,11 @@ message RevokeScopePermissionResponse {
 message ObjectWithMeta {
   bytes object_bytes = 1;
   string type = 2; // optional type
+}
+
+message ScopeGrantee {
+  string grantee_address = 1; // A bech32 account address for which to grant read access to the scope's records
+  string grant_id = 2; // An optional parameter that specifies a unique identifier by which to label the grant entry that will be created
 }
 
 // todo: figure out encryption scheme? (relying on TLS now)

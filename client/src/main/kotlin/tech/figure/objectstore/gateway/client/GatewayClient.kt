@@ -9,11 +9,14 @@ import io.provenance.scope.sdk.toPublicKeyProto
 import io.provenance.scope.util.toByteString
 import tech.figure.objectstore.gateway.GatewayGrpc
 import tech.figure.objectstore.gateway.GatewayOuterClass
+import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantScopePermissionRequest
+import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantScopePermissionResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.GrantScopePermissionRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.GrantScopePermissionResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.PutObjectResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.RevokeScopePermissionRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.RevokeScopePermissionResponse
+import tech.figure.objectstore.gateway.GatewayOuterClass.ScopeGrantee
 import tech.figure.objectstore.gateway.admin.Admin.DataStorageAccount
 import tech.figure.objectstore.gateway.admin.Admin.FetchDataStorageAccountRequest
 import tech.figure.objectstore.gateway.admin.Admin.PutDataStorageAccountRequest
@@ -47,8 +50,8 @@ class GatewayClient(val config: ClientConfig) : Closeable {
     /**
      * Fetch scope data from gateway, using an existing JWT as authentication
      * @param scopeAddress the scope's address
-     * @param jwt any instance of GatewayJwt for use in generating the proper JWT metadata for the request
-     * @param timeout an optional timeout for the request that also controls the timeout for any generated jwt
+     * @param jwt Any instance of GatewayJwt for use in generating the proper JWT metadata for the request
+     * @param timeout An optional timeout for the request that also controls the timeout for any generated jwt
      */
     fun requestScopeData(
         scopeAddress: String,
@@ -68,13 +71,13 @@ class GatewayClient(val config: ClientConfig) : Closeable {
      * Write an object to object store via the gateway. The object will be encrypted by the server's key and the address in the JWT will be permissioned
      * to retrieve the object.
      *
-     * @param objectBytes the raw data to store
-     * @param objectType (optional) the type of data that this represents. This is for reference at the time of retrieval if needed
-     * @param jwt any instance of GatewayJwt for use in generating the proper JWT metadata for the request
-     * @param timeout an optional timeout for the request that also controls the timeout for any generated jwt
-     * @param additionalAudienceKeys an optional list of additional public keys that should have access to this object via the gateway
+     * @param objectBytes The raw data to store
+     * @param objectType (Optional) the type of data that this represents. This is for reference at the time of retrieval if needed
+     * @param jwt Any instance of GatewayJwt for use in generating the proper JWT metadata for the request
+     * @param timeout An optional timeout for the request that also controls the timeout for any generated jwt
+     * @param additionalAudienceKeys An optional list of additional public keys that should have access to this object via the gateway
      *
-     * @return a proto containing the hash of the stored object. This hash can be used for future retrieval via [getObject].
+     * @return A proto containing the hash of the stored object. This hash can be used for future retrieval via [getObject].
      *  Note that this is not the hash of the provided objectBytes, but rather the sha256 hash of a serialized proto containing the provided objectBytes and objectType
      */
     fun putObject(
@@ -103,11 +106,11 @@ class GatewayClient(val config: ClientConfig) : Closeable {
      * Retrieve an object from object store via the gateway. The object will only be returned if the address contained within the authenticated jwt
      * has been granted access via the gateway.
      *
-     * @param hash the hash of the object to retrieve (as returned by [putObject])
-     * @param jwt any instance of GatewayJwt for use in generating the proper JWT metadata for the request
-     * @param timeout an optional timeout for the request that also controls the timeout for any generated jwt
+     * @param hash The hash of the object to retrieve (as returned by [putObject])
+     * @param jwt Any instance of GatewayJwt for use in generating the proper JWT metadata for the request
+     * @param timeout An optional timeout for the request that also controls the timeout for any generated jwt
      *
-     * @return a proto containing an object that holds the provided objectBytes and objectType as provided by [putObject]
+     * @return A proto containing an object that holds the provided objectBytes and objectType as provided by [putObject]
      */
     fun getObject(
         hash: String,
@@ -130,10 +133,10 @@ class GatewayClient(val config: ClientConfig) : Closeable {
      *
      * @param scopeAddress The bech32 Provenance Blockchain Scope address for which to grant access
      * @param granteeAddress The bech32 Provenance Blockchain Account address to which access will be granted
-     * @param jwt any instance of GatewayJwt for use in generating the proper JWT metadata for the request
+     * @param jwt Any instance of GatewayJwt for use in generating the proper JWT metadata for the request
      * @param grantId A free-form grant identifier that will be appended to the record created in the scope_permissions
      * table for targeted revokes.  If omitted, the record created will have a null grant id
-     * @param timeout an optional timeout for the request that also controls the timeout for any generated jwt
+     * @param timeout An optional timeout for the request that also controls the timeout for any generated jwt
      */
     fun grantScopePermission(
         scopeAddress: String,
@@ -153,6 +156,31 @@ class GatewayClient(val config: ClientConfig) : Closeable {
         .get()
 
     /**
+     * Grants permission to all grantees to view the records associated with the given Provenance Blockchain Scope
+     * address.  The caller of this function has to be either the value owner of the given scope, or the administrator
+     * of the gateway application.
+     *
+     * @param scopeAddress The bech32 Provenance Blockchain Scope address for which to grant access
+     * @param grantees All Provenance Blockchain accounts to which access will be granted
+     * @param jwt Any instance of GatewayJwt for use in generating the proper JWT metadata for the request
+     * @param timeout An optional timeout for the request that also controls the timeout for any generated jwt
+     */
+    fun batchGrantScopePermission(
+        scopeAddress: String,
+        grantees: Collection<ScopeGrantee>,
+        jwt: GatewayJwt,
+        timeout: Duration = GatewayJwt.DEFAULT_TIMEOUT,
+    ): BatchGrantScopePermissionResponse = gatewayStub.withDeadline(Deadline.after(timeout.seconds, TimeUnit.SECONDS))
+        .interceptJwt(jwt, timeout)
+        .batchGrantScopePermission(
+            BatchGrantScopePermissionRequest.newBuilder().also { request ->
+                request.scopeAddress = scopeAddress
+                request.addAllGrantees(grantees)
+            }.build()
+        )
+        .get()
+
+    /**
      * Revokes permission from the grantee to view the records associated with the given Provenance Blockchain Scope
      * address.  The caller of this function has to be one of the following to avoid request rejection:
      * - The associated scope's value owner
@@ -161,11 +189,11 @@ class GatewayClient(val config: ClientConfig) : Closeable {
      *
      * @param scopeAddress The bech32 Provenance Blockchain Scope address for which to revoke access
      * @param granteeAddress The bech32 Provenance Blockchain Account address for which access will be revoked
-     * @param jwt any instance of GatewayJwt for use in generating the proper JWT metadata for the request
+     * @param jwt Any instance of GatewayJwt for use in generating the proper JWT metadata for the request
      * @param grantId A free-form grant identifier that will be used to query for existing scope_permissions records.
      * If this value is omitted, all grants for the given scope and grantee combination will be revoked, versus targeting
      * a singular unique record with the given id.
-     * @param timeout an optional timeout for the request that also controls the timeout for any generated jwt
+     * @param timeout An optional timeout for the request that also controls the timeout for any generated jwt
      */
     fun revokeScopePermission(
         scopeAddress: String,
@@ -195,8 +223,8 @@ class GatewayClient(val config: ClientConfig) : Closeable {
      * authorized user for using object storage routes
      * @param enabled If true, this account will be enabled for object storage routes.  If false, the account will be
      * barred from this functionality
-     * @param jwt any instance of GatewayJwt for use in generating the proper JWT metadata for the request
-     * @param timeout an optional timeout for the request that also controls the timeout for any generated jwt
+     * @param jwt Any instance of GatewayJwt for use in generating the proper JWT metadata for the request
+     * @param timeout An optional timeout for the request that also controls the timeout for any generated jwt
      */
     fun adminPutDataStorageAccount(
         address: String,
@@ -221,8 +249,8 @@ class GatewayClient(val config: ClientConfig) : Closeable {
      * THIS ROUTE MANDATES THE USE OF THE GATEWAY MASTER KEY.  ALL OTHER ADDRESSES' REQUESTS WILL BE REJECTED.
      *
      * @param address The Provenance Blockchain bech32 address of the account for which to fetch a storage record
-     * @param jwt any instance of GatewayJwt for use in generating the proper JWT metadata for the request
-     * @param timeout an optional timeout for the request that also controls the timeout for any generated jwt
+     * @param jwt Any instance of GatewayJwt for use in generating the proper JWT metadata for the request
+     * @param timeout An optional timeout for the request that also controls the timeout for any generated jwt
      */
     fun adminFetchDataStorageAccount(
         address: String,

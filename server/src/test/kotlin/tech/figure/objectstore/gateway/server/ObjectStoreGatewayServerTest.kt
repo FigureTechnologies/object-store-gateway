@@ -7,6 +7,7 @@ import io.grpc.StatusRuntimeException
 import io.grpc.stub.StreamObserver
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.spyk
 import io.mockk.verify
 import io.mockk.verifyAll
 import io.provenance.hdwallet.ec.extensions.toJavaECKeyPair
@@ -26,10 +27,13 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.SpringBootTest
 import tech.figure.objectstore.gateway.GatewayOuterClass
+import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantScopePermissionRequest
+import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantScopePermissionResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.GrantScopePermissionRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.GrantScopePermissionResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.RevokeScopePermissionRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.RevokeScopePermissionResponse
+import tech.figure.objectstore.gateway.GatewayOuterClass.ScopeGrantee
 import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
 import tech.figure.objectstore.gateway.helpers.bech32Address
 import tech.figure.objectstore.gateway.helpers.createErrorSlot
@@ -53,6 +57,7 @@ import java.util.UUID
 import kotlin.random.Random
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 @SpringBootTest
 class ObjectStoreGatewayServerTest {
@@ -81,7 +86,7 @@ class ObjectStoreGatewayServerTest {
         contextKeyPair: KeyPair = keyPair,
     ) {
         scopeFetchService = mockk()
-        scopePermissionsRepository = ScopePermissionsRepository()
+        scopePermissionsRepository = spyk()
         objectService = mockk()
         provenanceProperties = mockk()
         addressVerificationService = AddressVerificationService(provenanceProperties = provenanceProperties)
@@ -296,6 +301,148 @@ class ObjectStoreGatewayServerTest {
     }
 
     @Test
+    fun `batchGrantScopePermission should respond with success to an authorized caller for single grantee without grant id`() {
+        testBatchGrantScopePermission(
+            contextKeyPair = keyPair,
+            buildScopeGrantee(),
+        )
+    }
+
+    @Test
+    fun `batchGrantScopePermission should respond with success to an authorized caller for single grantee with grant id`() {
+        testBatchGrantScopePermission(
+            contextKeyPair = keyPair,
+            buildScopeGrantee(grantId = "whatever"),
+        )
+    }
+
+    @Test
+    fun `batchGrantScopePermission should respond with all successes to an authorized caller for multiple grantees without grant ids`() {
+        testBatchGrantScopePermission(
+            contextKeyPair = keyPair,
+            *(0..10).map { buildScopeGrantee() }.toTypedArray()
+        )
+    }
+
+    @Test
+    fun `batchGrantScopePermission should respond with all successes to an authorized caller for multiple grantees with grant ids`() {
+        testBatchGrantScopePermission(
+            contextKeyPair = keyPair,
+            *(0..10).map { grantIdPrefix -> buildScopeGrantee(grantId = "$grantIdPrefix-${UUID.randomUUID()}") }.toTypedArray()
+        )
+    }
+
+    @Test
+    fun `batchGrantScopePermission should reject grants that are not authorized`() {
+        // Use some random account as the requesting account to verify that the requester has to be someone relevant
+        val granterAccount = genRandomAccount()
+        setUpBaseServices(contextKeyPair = granterAccount.keyPair.toJavaECKeyPair())
+        setUpScopePermissionValues()
+        val responseObserver = mockkObserver<BatchGrantScopePermissionResponse>()
+        val grantees = (0..10).map { buildScopeGrantee() }
+        val request = getBatchGrant(*grantees.toTypedArray())
+        server.batchGrantScopePermission(request = request, responseObserver = responseObserver)
+        verify(inverse = true) { responseObserver.onError(any()) }
+        verifyAll {
+            responseObserver.onNext(
+                BatchGrantScopePermissionResponse.newBuilder().also { response ->
+                    response.request = request
+                    response.addAllGrantResponses(
+                        grantees.map { grantee ->
+                            GrantScopePermissionResponse.newBuilder().also { grantResponse ->
+                                grantResponse.requestBuilder.scopeAddress = scopeAddress
+                                grantResponse.requestBuilder.granteeAddress = grantee.granteeAddress
+                                grantResponse.grantAccepted = false
+                            }.build()
+                        }
+                    )
+                }.build()
+            )
+            responseObserver.onCompleted()
+        }
+        assertEquals(
+            expected = 0,
+            actual = transaction { ScopePermissionsTable.selectAll().count() },
+            message = "No scope permissions should have ever been assigned, proving that all grantees were rejected",
+        )
+    }
+
+    @Test
+    fun `batchGrantScopePermission should remove grants that cause exceptions from the response`() {
+        setUpBaseServices()
+        setUpScopePermissionValues()
+        val goodGrantee = buildScopeGrantee()
+        val badGrantee = buildScopeGrantee()
+        // Hook into the database to force it to throw an exception only on this address
+        every {
+            scopePermissionsRepository.addAccessPermission(
+                scopeAddress = scopeAddress,
+                granteeAddress = badGrantee.granteeAddress,
+                granterAddress = defaultGranter,
+                grantId = null,
+            )
+        } throws IllegalStateException("For some reason, this particular address causes exceptions in the database!")
+        val responseObserver = mockkObserver<BatchGrantScopePermissionResponse>()
+        val request = getBatchGrant(goodGrantee, badGrantee)
+        server.batchGrantScopePermission(request = request, responseObserver = responseObserver)
+        verify(inverse = true) { responseObserver.onError(any()) }
+        verifyAll {
+            responseObserver.onNext(
+                BatchGrantScopePermissionResponse.newBuilder().also { response ->
+                    response.request = request
+                    response.addGrantResponses(
+                        GrantScopePermissionResponse.newBuilder().also { grantResponse ->
+                            grantResponse.requestBuilder.scopeAddress = scopeAddress
+                            grantResponse.requestBuilder.granteeAddress = goodGrantee.granteeAddress
+                            grantResponse.requestBuilder.grantId = goodGrantee.grantId
+                            grantResponse.granterAddress = defaultGranter
+                            grantResponse.grantAccepted = true
+                        }
+                    )
+                }.build()
+            )
+            responseObserver.onCompleted()
+        }
+        assertEquals(
+            expected = 1,
+            actual = transaction { ScopePermissionsTable.selectAll().count() },
+            message = "Only one grantee should be added to the database",
+        )
+        assertEquals(
+            expected = 1,
+            actual = getGrantCount(grantee = goodGrantee.granteeAddress),
+            message = "The expected grantee should be added to the database",
+        )
+        assertEquals(
+            expected = 0,
+            actual = getGrantCount(grantee = badGrantee.granteeAddress),
+            message = "Sanity check: The grantee expected to throw an exception should not be given a grant",
+        )
+    }
+
+    @Test
+    fun `batchGrantScopePermission should reject requests that do not specify any grantees`() {
+        setUpBaseServices()
+        setUpScopePermissionValues()
+        val responseObserver = mockkObserver<BatchGrantScopePermissionResponse>()
+        val exceptionSlot = responseObserver.createErrorSlot<StatusRuntimeException>()
+        server.batchGrantScopePermission(request = getBatchGrant(), responseObserver = responseObserver)
+        verifyAll(inverse = true) {
+            responseObserver.onNext(any())
+            responseObserver.onCompleted()
+        }
+        assertEquals(
+            expected = Status.INVALID_ARGUMENT.code,
+            actual = exceptionSlot.captured.status.code,
+            message = "The INVALID_ARGUMENT status should be emitted when no grantees are added",
+        )
+        assertTrue(
+            actual = "At least one grantee is required" in (exceptionSlot.captured.message ?: "NO MESSAGE EMITTED"),
+            message = "Expected the correct exception text to be included in message: ${exceptionSlot.captured.message}",
+        )
+    }
+
+    @Test
     fun `revokeScopePermission should respond with a success to an authorized caller no grant id`() {
         testRevokeScopePermission(contextKeyPair = keyPair, grantId = null)
     }
@@ -390,6 +537,44 @@ class ObjectStoreGatewayServerTest {
         )
     }
 
+    private fun testBatchGrantScopePermission(
+        contextKeyPair: KeyPair,
+        vararg grantees: ScopeGrantee,
+    ) {
+        setUpBaseServices(contextKeyPair = contextKeyPair)
+        setUpScopePermissionValues()
+        val responseObserver = mockkObserver<BatchGrantScopePermissionResponse>()
+        val request = getBatchGrant(*grantees)
+        server.batchGrantScopePermission(request = request, responseObserver = responseObserver)
+        verify(inverse = true) { responseObserver.onError(any()) }
+        verifyAll {
+            responseObserver.onNext(
+                BatchGrantScopePermissionResponse.newBuilder().also { batchResponse ->
+                    batchResponse.request = request
+                    batchResponse.addAllGrantResponses(
+                        grantees.map { grantee ->
+                            GrantScopePermissionResponse.newBuilder().also { grantResponse ->
+                                grantResponse.requestBuilder.scopeAddress = scopeAddress
+                                grantResponse.requestBuilder.granteeAddress = grantee.granteeAddress
+                                grantResponse.requestBuilder.grantId = grantee.grantId
+                                grantResponse.granterAddress = defaultGranter
+                                grantResponse.grantAccepted = true
+                            }.build()
+                        }
+                    )
+                }.build()
+            )
+            responseObserver.onCompleted()
+        }
+        grantees.forEach { grantee ->
+            assertEquals(
+                expected = 1,
+                actual = getGrantCount(grantee = grantee.granteeAddress, grantId = grantee.grantId.takeIf { it.isNotBlank() }),
+                message = "Grantee [${grantee.granteeAddress}] should receive a grant from the batch request",
+            )
+        }
+    }
+
     private fun testRevokeScopePermission(
         contextKeyPair: KeyPair,
         grantId: String?,
@@ -432,6 +617,13 @@ class ObjectStoreGatewayServerTest {
         grantId?.also { reqBuilder.grantId = it }
     }.build()
 
+    private fun getBatchGrant(
+        vararg grantees: ScopeGrantee,
+    ): BatchGrantScopePermissionRequest = BatchGrantScopePermissionRequest.newBuilder().also { reqBuilder ->
+        reqBuilder.scopeAddress = scopeAddress
+        reqBuilder.addAllGrantees(grantees.toList())
+    }.build()
+
     private fun getPermissionRevoke(
         grantee: String = defaultGrantee,
         grantId: String? = null,
@@ -452,4 +644,12 @@ class ObjectStoreGatewayServerTest {
         granter = granter,
         grantId = grantId,
     )
+
+    private fun buildScopeGrantee(
+        granteeAddress: String = genRandomAccount().bech32Address,
+        grantId: String? = null,
+    ): ScopeGrantee = ScopeGrantee.newBuilder().also { grantee ->
+        grantee.granteeAddress = granteeAddress
+        grantId?.also { grantee.grantId = it }
+    }.build()
 }

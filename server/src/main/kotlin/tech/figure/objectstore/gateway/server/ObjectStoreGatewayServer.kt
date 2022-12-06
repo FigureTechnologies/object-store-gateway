@@ -11,6 +11,8 @@ import org.lognet.springboot.grpc.GRpcService
 import org.springframework.beans.factory.annotation.Qualifier
 import tech.figure.objectstore.gateway.GatewayGrpc
 import tech.figure.objectstore.gateway.GatewayOuterClass
+import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantScopePermissionRequest
+import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantScopePermissionResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.GrantScopePermissionResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.RevokeScopePermissionResponse
 import tech.figure.objectstore.gateway.address
@@ -84,17 +86,12 @@ class ObjectStoreGatewayServer(
         request: GatewayOuterClass.GrantScopePermissionRequest,
         responseObserver: StreamObserver<GrantScopePermissionResponse>,
     ) {
-        val requesterAddress = address()
-        val grantId = request.grantId.takeIf { it.isNotBlank() }
-        val sourceDetails = "Manual grant request by $requesterAddress for scope ${request.scopeAddress}, grantee ${request.granteeAddress}${if (grantId != null) ", grantId $grantId" else ""}"
-        val grantResponse = scopePermissionsService.processAccessGrant(
+        val (grantResponse, sourceDetails) = processScopeGrant(
+            requesterAddress = address(),
             scopeAddress = request.scopeAddress,
             granteeAddress = request.granteeAddress,
-            grantSourceAddresses = setOf(requesterAddress),
-            // The application's admin should be able to manually grant any permission that is desired
-            additionalAuthorizedAddresses = setOf(masterKey.publicKey.getAddress(mainNet = provenanceProperties.mainNet)),
-            grantId = grantId,
-            sourceDetails = sourceDetails,
+            grantId = request.grantId,
+            requestType = "Manual Grant",
         )
         val respond: (accepted: Boolean, granterAddress: String?) -> Unit = { accepted, granterAddress ->
             responseObserver.onNext(
@@ -117,6 +114,55 @@ class ObjectStoreGatewayServer(
                 responseObserver.onError(StatusRuntimeException(Status.UNKNOWN.withDescription(DEFAULT_UNKNOWN_DESCRIPTION)))
             }
         }
+    }
+
+    override fun batchGrantScopePermission(
+        request: BatchGrantScopePermissionRequest,
+        responseObserver: StreamObserver<BatchGrantScopePermissionResponse>,
+    ) {
+        if (request.granteesList.isEmpty()) {
+            responseObserver.onError(StatusRuntimeException(Status.INVALID_ARGUMENT.withDescription("At least one grantee is required")))
+            return
+        }
+        val requesterAddress = address()
+        val completedGrantDetails = request.granteesList.mapNotNull { grantee ->
+            val (grantResponse, sourceDetails) = this.processScopeGrant(
+                requesterAddress = requesterAddress,
+                scopeAddress = request.scopeAddress,
+                granteeAddress = grantee.granteeAddress,
+                grantId = grantee.grantId,
+                requestType = "Batch Grant",
+            )
+            // The response should only include grantee information when the grantees did not throw exceptions.  The
+            // caller can cross-reference the sent request versus what was produced in that list to determine any failures,
+            // if they care.
+            when (grantResponse) {
+                is GrantResponse.Accepted -> grantee to grantResponse.granterAddress
+                is GrantResponse.Rejected -> {
+                    logger.warn("REJECTED $sourceDetails: ${grantResponse.message}")
+                    grantee to null
+                }
+                is GrantResponse.Error -> {
+                    logger.error("ERROR $sourceDetails", grantResponse.cause)
+                    null
+                }
+            }
+        }
+        responseObserver.onNext(
+            BatchGrantScopePermissionResponse.newBuilder().also { batchResponse ->
+                batchResponse.request = request
+                completedGrantDetails.map { (grantee, granterAddress) ->
+                    GrantScopePermissionResponse.newBuilder().also { grantResponse ->
+                        grantResponse.requestBuilder.scopeAddress = request.scopeAddress
+                        grantResponse.requestBuilder.granteeAddress = grantee.granteeAddress
+                        grantResponse.requestBuilder.grantId = grantee.grantId
+                        granterAddress?.also { grantResponse.granterAddress = it }
+                        grantResponse.grantAccepted = granterAddress != null
+                    }.build()
+                }.also(batchResponse::addAllGrantResponses)
+            }.build()
+        )
+        responseObserver.onCompleted()
     }
 
     override fun revokeScopePermission(
@@ -160,5 +206,25 @@ class ObjectStoreGatewayServer(
                 responseObserver.onError(StatusRuntimeException(Status.UNKNOWN.withDescription(DEFAULT_UNKNOWN_DESCRIPTION)))
             }
         }
+    }
+
+    /**
+     * Helper function to more easily format scope grant requests for both the manual and batch routes.
+     */
+    private fun processScopeGrant(
+        requesterAddress: String,
+        scopeAddress: String,
+        granteeAddress: String,
+        grantId: String,
+        requestType: String,
+    ): Pair<GrantResponse, String> = "$requestType request by $requesterAddress for scope $scopeAddress, grantee $granteeAddress${if (grantId.isNotBlank()) ", grantId $grantId" else ""}".let { sourceDetails ->
+        scopePermissionsService.processAccessGrant(
+            scopeAddress = scopeAddress,
+            granteeAddress = granteeAddress,
+            grantSourceAddresses = setOf(requesterAddress),
+            additionalAuthorizedAddresses = setOf(masterKey.publicKey.getAddress(mainNet = provenanceProperties.mainNet)),
+            grantId = grantId.takeIf { it.isNotBlank() },
+            sourceDetails = sourceDetails,
+        ) to sourceDetails
     }
 }
