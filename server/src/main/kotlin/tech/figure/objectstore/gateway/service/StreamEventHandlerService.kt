@@ -9,11 +9,8 @@ import mu.KLogging
 import org.springframework.stereotype.Service
 import tech.figure.eventstream.stream.models.TxEvent
 import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
-import tech.figure.objectstore.gateway.eventstream.AcContractEvent
-import tech.figure.objectstore.gateway.eventstream.AssetClassificationEvent
 import tech.figure.objectstore.gateway.eventstream.GatewayEvent
 import tech.figure.objectstore.gateway.eventstream.GatewayExpectedEventType
-import tech.figure.objectstore.gateway.extensions.checkNotNull
 
 @Service
 class StreamEventHandlerService(
@@ -65,7 +62,7 @@ class StreamEventHandlerService(
                     }
                 }
             }
-        } ?: handleAssetClassificationEvent(AssetClassificationEvent(event))
+        }
     }
 
     /**
@@ -84,42 +81,4 @@ class StreamEventHandlerService(
         .map(ECUtils::convertBytesToPublicKey)
         .map { publicKey -> publicKey.getAddress(provenanceProperties.mainNet) }
         .toSet()
-
-    /**
-     * Handles a given asset classification smart contract event.  This is a legacy handling function and should be
-     * removed when the asset classification smart contract is coded to properly include the gateway grant event
-     * structure.
-     *
-     * TODO: Remove after the asset classification smart contract does not any longer require backwards compatibility.
-     */
-    private fun handleAssetClassificationEvent(event: AssetClassificationEvent) {
-        // This will be extremely common - we cannot filter events upfront in the event stream code, so this check
-        // throws away everything not emitted by the asset classification smart contract
-        if (event.eventType == null) {
-            logger.debug("Skipping unrelated wasm event with tx hash [${event.txHash}]")
-            return
-        }
-        // Only regard expected event types
-        if (event.eventType !in AcContractEvent.HANDLED_EVENTS) {
-            logger.info("Skipping unsupported event type [${event.eventType}] from asset classification contract")
-            return
-        }
-        // This will commonly happen - the contract emits events that don't target the verifier at all, but they'll
-        // still pass through here
-        if (event.verifierAddress == null) {
-            logger.debug("No way to determine which verifier event at tx hash [${event.txHash}] was targeting. The address was null")
-            return
-        }
-        when (event.eventType) {
-            AcContractEvent.ONBOARD_ASSET -> scopePermissionsService.processAccessGrant(
-                scopeAddress = event.scopeAddress.checkNotNull { "[ONBOARD ASSET | Tx: ${event.txHash}]: Expected the onboard asset event to include a scope address" },
-                granteeAddress = event.verifierAddress.checkNotNull { "[ONBOARD ASSET | Tx: ${event.txHash}]: Expected the onboard asset event to include a verifier address" },
-                // The scope owner address is established in the contract by directly using the sender of the contract message,
-                // making this relatively safe.
-                grantSourceAddresses = setOfNotNull(event.scopeOwnerAddress),
-                sourceDetails = "Asset Classification Event from tx [${event.txHash}]",
-            )
-            else -> throw IllegalStateException("After all event checks, an unexpected event was attempted for processing. Tx hash: [${event.txHash}], event type: [${event.eventType}]")
-        }
-    }
 }

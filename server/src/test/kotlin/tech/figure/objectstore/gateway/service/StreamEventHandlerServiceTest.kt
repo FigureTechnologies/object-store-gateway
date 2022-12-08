@@ -21,7 +21,6 @@ import org.springframework.boot.test.context.SpringBootTest
 import tech.figure.eventstream.stream.models.Event
 import tech.figure.eventstream.stream.models.TxEvent
 import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
-import tech.figure.objectstore.gateway.eventstream.AcContractKey
 import tech.figure.objectstore.gateway.eventstream.GatewayExpectedAttribute
 import tech.figure.objectstore.gateway.eventstream.GatewayExpectedEventType
 import tech.figure.objectstore.gateway.helpers.bech32Address
@@ -107,28 +106,10 @@ class StreamEventHandlerServiceTest {
     }
 
     @Test
-    fun `StreamEventHandlerService chooses onboarding scopeOwner as granter when that address is watched from asset classification event`() {
-        setUp()
-
-        submitAssetClassificationEvent()
-
-        assertEquals(listOf(priorityOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
-    }
-
-    @Test
     fun `StreamEventHandlerService chooses onboarding scopeOwner as granter when that address is watched from gateway grant event`() {
         setUp()
 
         submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
-
-        assertEquals(listOf(priorityOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
-    }
-
-    @Test
-    fun `StreamEventHandlerService chooses other scopeOwner as granter when that address is watched and onboarding owner is not from asset classification event`() {
-        setUp(priorityOwnerAddress, sessionPartyAddress, dataAccessAddress)
-
-        submitAssetClassificationEvent()
 
         assertEquals(listOf(priorityOwnerAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
     }
@@ -143,30 +124,12 @@ class StreamEventHandlerServiceTest {
     }
 
     @Test
-    fun `StreamEventHandlerService chooses data access address as granter when that address is watched and onboarding, other owners are not from asset classification event`() {
-        setUp(sessionPartyAddress, dataAccessAddress)
-
-        submitAssetClassificationEvent()
-
-        assertEquals(listOf(dataAccessAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
-    }
-
-    @Test
     fun `StreamEventHandlerService chooses data access address as granter when that address is watched and onboarding, other owners are not from gateway grant event`() {
         setUp(sessionPartyAddress, dataAccessAddress)
 
         submitGatewayEvent(GatewayExpectedEventType.ACCESS_GRANT)
 
         assertEquals(listOf(dataAccessAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
-    }
-
-    @Test
-    fun `StreamEventHandlerService chooses session address as granter when that address is watched and onboarding, other owners and data access are not from asset classification event`() {
-        setUp(sessionPartyAddress)
-
-        submitAssetClassificationEvent()
-
-        assertEquals(listOf(sessionPartyAddress), scopePermissionsRepository.getAccessGranterAddresses(scopeAddress, grantee.bech32Address))
     }
 
     @Test
@@ -305,18 +268,6 @@ class StreamEventHandlerServiceTest {
                 fail(message = errorMessage, cause = e)
             }
         }
-    }
-
-    private fun submitAssetClassificationEvent() {
-        submitEvent(
-            attributes = listOf(
-                AcContractKey.EVENT_TYPE.eventName to "onboard_asset",
-                AcContractKey.ASSET_TYPE.eventName to "payable",
-                AcContractKey.SCOPE_ADDRESS.eventName to scopeAddress,
-                AcContractKey.SCOPE_OWNER_ADDRESS.eventName to onboardingOwner.bech32Address,
-                AcContractKey.VERIFIER_ADDRESS.eventName to grantee.bech32Address,
-            )
-        )
     }
 
     private fun submitGatewayEvent(eventType: GatewayExpectedEventType, grantId: String? = null) {
