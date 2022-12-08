@@ -1,6 +1,6 @@
 package tech.figure.objectstore.gateway.eventstream
 
-import io.provenance.eventstream.stream.models.TxEvent
+import tech.figure.eventstream.stream.models.TxEvent
 
 // TODO: Remove this class when asset classification events are no longer consumed
 class AssetClassificationEvent(sourceEvent: TxEvent) : GatewayEventAdapter(sourceEvent) {

@@ -3,11 +3,11 @@ package tech.figure.objectstore.gateway.service
 import cosmos.crypto.secp256k1.Keys.PubKey
 import cosmos.tx.v1beta1.ServiceOuterClass.GetTxRequest
 import io.provenance.client.grpc.PbClient
-import io.provenance.eventstream.stream.models.TxEvent
 import io.provenance.scope.encryption.ecies.ECUtils
 import io.provenance.scope.encryption.util.getAddress
 import mu.KLogging
 import org.springframework.stereotype.Service
+import tech.figure.eventstream.stream.models.TxEvent
 import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
 import tech.figure.objectstore.gateway.eventstream.AcContractEvent
 import tech.figure.objectstore.gateway.eventstream.AssetClassificationEvent

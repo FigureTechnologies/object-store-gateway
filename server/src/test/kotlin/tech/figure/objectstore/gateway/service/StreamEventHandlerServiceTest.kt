@@ -7,8 +7,6 @@ import io.mockk.every
 import io.mockk.mockk
 import io.provenance.client.grpc.PbClient
 import io.provenance.client.protobuf.extensions.toAny
-import io.provenance.eventstream.stream.models.Event
-import io.provenance.eventstream.stream.models.TxEvent
 import io.provenance.hdwallet.ec.extensions.toJavaECPublicKey
 import io.provenance.hdwallet.wallet.Account
 import io.provenance.metadata.v1.PartyType
@@ -20,6 +18,8 @@ import org.jetbrains.exposed.sql.transactions.transaction
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.SpringBootTest
+import tech.figure.eventstream.stream.models.Event
+import tech.figure.eventstream.stream.models.TxEvent
 import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
 import tech.figure.objectstore.gateway.eventstream.AcContractKey
 import tech.figure.objectstore.gateway.eventstream.GatewayExpectedAttribute

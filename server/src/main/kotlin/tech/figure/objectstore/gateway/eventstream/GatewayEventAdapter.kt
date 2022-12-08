@@ -1,7 +1,7 @@
 package tech.figure.objectstore.gateway.eventstream
 
-import io.provenance.eventstream.stream.models.TxEvent
 import mu.KotlinLogging
+import tech.figure.eventstream.stream.models.TxEvent
 
 /**
  * A base adapter class for a given TxEvent, consumed via the event stream libraries.  This allows an event to be

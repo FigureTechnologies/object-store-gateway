@@ -46,7 +46,7 @@ dependencies {
         libs.bundles.grpc
     ).forEach(::implementation)
 
-    protobuf(libs.scopeSdkProto)
+    protobuf(libs.provenance.scope.proto)
 }
 
 protobuf {
