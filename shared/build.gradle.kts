@@ -4,13 +4,13 @@ plugins {
 
 dependencies {
     listOf(
-        libs.scopeSdk,
-        libs.bcProv,
-        libs.bundles.jwt,
+        libs.bouncycastle,
+        libs.java.jwt,
+        libs.provenance.scope.sdk,
         libs.bundles.grpc,
     ).forEach(::implementation)
 
     listOf(
-        libs.bundles.testKotlin,
+        libs.bundles.test.kotlin,
     ).forEach(::testImplementation)
 }

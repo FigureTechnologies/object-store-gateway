@@ -32,24 +32,25 @@ dependencies {
 
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
     listOf(
-        libs.bundles.bouncyCastle,
+        libs.bouncycastle,
+        libs.java.jwt,
+        libs.okhttp3,
+        libs.bundles.database,
+        libs.bundles.eventstream,
         libs.bundles.grpc,
         libs.bundles.jackson,
         libs.bundles.kotlin,
         libs.bundles.logging,
-        libs.bundles.okhttp,
         libs.bundles.protobuf,
         libs.bundles.provenance,
         libs.bundles.scarlet,
         libs.bundles.springboot,
-        libs.bundles.exposed,
-        libs.bundles.jwt,
     ).forEach(::implementation)
 
     listOf(
-        libs.bundles.testKotlin,
-        libs.bundles.testSpringBoot,
-        libs.bundles.testContainers,
+        libs.springboot.starter.test,
+        libs.bundles.test.kotlin,
+        libs.bundles.testcontainers,
     ).forEach(::testImplementation)
 }
 

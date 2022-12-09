@@ -1,9 +1,9 @@
 package tech.figure.objectstore.gateway.eventstream
 
-import io.provenance.eventstream.extensions.decodeBase64
-import io.provenance.eventstream.stream.models.Event
-import io.provenance.eventstream.stream.models.TxEvent
 import mu.KotlinLogging
+import tech.figure.eventstream.decodeBase64
+import tech.figure.eventstream.stream.models.Event
+import tech.figure.eventstream.stream.models.TxEvent
 
 data class TxAttribute(val key: String, val value: String) {
     companion object {

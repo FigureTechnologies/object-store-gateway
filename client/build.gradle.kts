@@ -20,10 +20,10 @@ dependencies {
     api(projects.proto)
     implementation(projects.shared)
     listOf(
+        libs.bouncycastle,
+        libs.java.jwt,
         libs.bundles.grpc,
         libs.bundles.protobuf,
-        libs.bundles.bouncyCastle,
         libs.bundles.provenance,
-        libs.bundles.jwt,
     ).forEach(::implementation)
 }

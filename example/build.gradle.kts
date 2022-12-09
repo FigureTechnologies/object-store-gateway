@@ -17,8 +17,8 @@ dependencies {
     implementation(projects.client)
 
     listOf(
+        libs.asset.model,
+        libs.bouncycastle,
         libs.bundles.provenance,
-        libs.bundles.bouncyCastle
     ).forEach(::implementation)
-    implementation("io.provenance.model:metadata-asset-model:0.1.2")
 }

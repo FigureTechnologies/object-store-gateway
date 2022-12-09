@@ -1,11 +1,5 @@
 package tech.figure.objectstore.gateway.components
 
-import io.provenance.eventstream.decoder.moshiDecoderAdapter
-import io.provenance.eventstream.net.okHttpNetAdapter
-import io.provenance.eventstream.stream.flows.blockDataFlow
-import io.provenance.eventstream.stream.models.extensions.dateTime
-import io.provenance.eventstream.stream.models.extensions.txData
-import io.provenance.eventstream.stream.models.extensions.txEvents
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -18,6 +12,12 @@ import org.springframework.boot.actuate.health.HealthIndicator
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.ApplicationListener
 import org.springframework.stereotype.Component
+import tech.figure.eventstream.decoder.moshiDecoderAdapter
+import tech.figure.eventstream.net.okHttpNetAdapter
+import tech.figure.eventstream.stream.flows.blockDataFlow
+import tech.figure.eventstream.stream.models.dateTime
+import tech.figure.eventstream.stream.models.txData
+import tech.figure.eventstream.stream.models.txEvents
 import tech.figure.objectstore.gateway.configuration.BeanQualifiers
 import tech.figure.objectstore.gateway.configuration.EventStreamProperties
 import tech.figure.objectstore.gateway.repository.BlockHeightRepository
