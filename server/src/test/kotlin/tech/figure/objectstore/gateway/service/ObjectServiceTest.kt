@@ -74,6 +74,27 @@ class ObjectServiceTest {
     }
 
     @Test
+    fun `putObject should allow the master key to do data storage even when it is not in the accounts repository`() {
+        val obj = randomObject()
+        val objectBytes = obj.toByteArray()
+        val objectHash = objectBytes.sha256String()
+
+        every { accountsRepository.isAddressEnabled(any()) } returns false
+        every { osClient.osClient.put(any(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(masterKey.publicKey), mapOf(), any(), false) } returns Futures.immediateFuture(
+            Objects.ObjectResponse.newBuilder().setHash(objectHash.base64Decode().toByteString()).build()
+        )
+        every { objectPermissionsRepository.addAccessPermission(objectHash, masterKey.publicKey.getAddress(false), objectBytes.size.toLong()) } returns Unit
+
+        val response = objectService.putObject(obj, masterKey.publicKey)
+
+        assertEquals(objectHash, response)
+        verifyAll {
+            osClient.osClient.put(any(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(masterKey.publicKey), mapOf(), any(), false)
+            objectPermissionsRepository.addAccessPermission(objectHash, masterKey.publicKey.getAddress(false), objectBytes.size.toLong())
+        }
+    }
+
+    @Test
     fun `putObject should send object to object store and insert permissions record`() {
         val obj = randomObject()
         val objectBytes = obj.toByteArray()

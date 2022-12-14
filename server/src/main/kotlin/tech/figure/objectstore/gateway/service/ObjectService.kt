@@ -26,9 +26,12 @@ class ObjectService(
     private val objectPermissionsRepository: ObjectPermissionsRepository,
     private val provenanceProperties: ProvenanceProperties,
 ) {
+    private val masterAddress = masterKey.publicKey.getAddress(provenanceProperties.mainNet)
+
     fun putObject(obj: GatewayOuterClass.ObjectWithMeta, requesterPublicKey: PublicKey, additionalAudienceKeys: List<PublicKey> = listOf()): String {
         val requesterAddress = requesterPublicKey.getAddress(provenanceProperties.mainNet)
-        if (!accountsRepository.isAddressEnabled(requesterAddress)) {
+        // Always allow the master key data storage rights
+        if (requesterAddress != masterAddress && !accountsRepository.isAddressEnabled(requesterAddress)) {
             throw AccessDeniedException("Object storage not granted to $requesterAddress")
         }
 

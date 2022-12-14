@@ -67,7 +67,14 @@ class EventStreamConsumer(
                     .txEvents(block.block.header?.dateTime()) { index -> block.block.txData(index) }
                     .filter { TX_EVENTS.contains(it.eventType) } // these are the blocks you are looking for
                     .forEach {
-                        streamEventHandlerService.handleEvent(it)
+                        try {
+                            streamEventHandlerService.handleEvent(it)
+                        } catch (e: Exception) {
+                            // If exceptions are simply thrown without any additional logging, the errors appear to be
+                            // event stream related, which would not be the case if they occur in this block
+                            logger.error("Failed to process event with hash ${it.txHash} at height ${it.blockHeight}", e)
+                            throw e
+                        }
                     }
 
                 if (block.height < lastProcessedHeight) {
