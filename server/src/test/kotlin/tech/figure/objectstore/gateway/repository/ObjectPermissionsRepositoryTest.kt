@@ -11,9 +11,12 @@ import org.springframework.boot.test.context.SpringBootTest
 import tech.figure.objectstore.gateway.helpers.randomObject
 import tech.figure.objectstore.gateway.model.ObjectPermission
 import tech.figure.objectstore.gateway.model.ObjectPermissionsTable
+import tech.figure.objectstore.gateway.model.ObjectPermissionsTable.isObjectWithMeta
+import tech.figure.objectstore.gateway.model.ObjectPermissionsTable.storageKeyAddress
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @SpringBootTest
@@ -22,8 +25,11 @@ class ObjectPermissionsRepositoryTest {
 
     val obj = randomObject()
     val objectHash = obj.objectBytes.toByteArray().sha256String()
-    val objectSize = obj.toByteArray().size.toLong()
+    val objectSizeBytes = obj.toByteArray().size.toLong()
+    val granterAddress = ProvenanceKeyGenerator.generateKeyPair().public.getAddress(false)
     val granteeAddress = ProvenanceKeyGenerator.generateKeyPair().public.getAddress(false)
+    val masterKey = ProvenanceKeyGenerator.generateKeyPair()
+    val masterKeyAddress = masterKey.public.getAddress(false)
 
     @BeforeEach
     fun setUp() {
@@ -33,20 +39,32 @@ class ObjectPermissionsRepositoryTest {
 
     @Test
     fun `addAccessPermission should create access permission record`() {
-        repository.addAccessPermission(objectHash, granteeAddress, objectSize)
+        repository.addAccessPermission(objectHash = objectHash, granterAddress = granterAddress, granteeAddress = granteeAddress, storageKeyAddress = masterKeyAddress, objectSizeBytes = objectSizeBytes, isObjectWithMeta = true)
 
         transaction {
-            ObjectPermission.findByObjectHashAndAddress(objectHash, granteeAddress).also { record ->
+            ObjectPermission.findByObjectHashAndGranteeAddress(objectHash, granteeAddress).also { record ->
                 assertNotNull(record)
+                assertEquals(granterAddress, record.granterAddress, "The granter address of the record should match")
                 assertEquals(objectHash, record.objectHash, "The object hash of the record should match")
                 assertEquals(granteeAddress, record.granteeAddress, "The grantee address of the record should match")
+                assertEquals(masterKeyAddress, record.storageKeyAddress, "The storage key address should match")
+                assertEquals(true, record.isObjectWithMeta, "The object's meta status should match")
             }
         }
     }
 
     @Test
     fun `hasAccessPermission should return true if permission set up`() {
-        transaction { ObjectPermission.new(objectHash, granteeAddress, objectSize) }
+        transaction {
+            ObjectPermission.new(
+                objectHash = objectHash,
+                granterAddress = granterAddress,
+                granteeAddress = granteeAddress,
+                storageKeyAddress = masterKeyAddress,
+                objectSizeBytes = objectSizeBytes,
+                isObjectWithMeta = true
+            )
+        }
 
         val hasAccess = repository.hasAccessPermission(objectHash, granteeAddress)
 
@@ -57,6 +75,36 @@ class ObjectPermissionsRepositoryTest {
     fun `hasAccessPermission should return false if permission not set up`() {
         val hasAccess = repository.hasAccessPermission(objectHash, granteeAddress)
 
-        assertFalse(hasAccess, "The address should have access")
+        assertFalse(hasAccess, "The address should not have access")
+    }
+
+    @Test
+    fun `getAccessPermission should return the access permission if it exists`() {
+        transaction {
+            ObjectPermission.new(
+                objectHash = objectHash,
+                granterAddress = granterAddress,
+                granteeAddress = granteeAddress,
+                storageKeyAddress = masterKeyAddress,
+                objectSizeBytes = objectSizeBytes,
+                isObjectWithMeta = true
+            )
+        }
+
+        val accessPermission = repository.getAccessPermission(objectHash, granteeAddress)
+
+        assertEquals(objectHash, accessPermission?.objectHash, "The access permission should be returned with the proper hash")
+        assertEquals(granterAddress, accessPermission?.granterAddress, "The access permission should be returned with the proper granter")
+        assertEquals(granteeAddress, accessPermission?.granteeAddress, "The access permission should be returned with the proper grantee")
+        assertEquals(masterKeyAddress, accessPermission?.storageKeyAddress, "The access permission should be returned with the proper key address")
+        assertEquals(objectSizeBytes, accessPermission?.objectSizeBytes, "The access permission should be returned with the proper object size")
+        assertEquals(true, accessPermission?.isObjectWithMeta, "The access permission should be returned with the proper object meta status")
+    }
+
+    @Test
+    fun `getAccessPermission should return null if the access permission does not exist`() {
+        val accessPermission = repository.getAccessPermission(objectHash, granteeAddress)
+
+        assertNull(accessPermission, "The address should not return an access permission")
     }
 }

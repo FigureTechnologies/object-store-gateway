@@ -19,7 +19,9 @@ fun getValidFetchObjectByHashRequest(hash: String) = GatewayOuterClass.FetchObje
     .setHash(hash)
     .build()
 
-fun randomObject(objectType: String? = null, size: Int = 100) = objectFromParts(Random.nextBytes(size), objectType)
+fun randomBytes(size: Int = 100) = Random.nextBytes(size)
+
+fun randomObject(objectType: String? = null, size: Int = 100) = objectFromParts(randomBytes(size), objectType)
 
 fun objectFromParts(objectBytes: ByteArray, objectType: String? = null) = GatewayOuterClass.ObjectWithMeta.newBuilder()
     .setObjectBytes(objectBytes.toByteString())

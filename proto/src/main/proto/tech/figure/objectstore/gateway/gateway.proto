@@ -7,7 +7,9 @@ import 'public_key.proto';
 service Gateway {
   rpc FetchObject (FetchObjectRequest) returns (FetchObjectResponse) {};
   rpc PutObject (PutObjectRequest) returns (PutObjectResponse) {};
+  rpc RegisterExistingObject (RegisterExistingObjectRequest) returns (RegisterExistingObjectResponse) {};
   rpc FetchObjectByHash (FetchObjectByHashRequest) returns (FetchObjectByHashResponse) {};
+  rpc RevokeObjectPermissions (RevokeObjectPermissionsRequest) returns (RevokeObjectPermissionsResponse) {};
   rpc GrantScopePermission (GrantScopePermissionRequest) returns (GrantScopePermissionResponse) {};
   rpc BatchGrantScopePermission (BatchGrantScopePermissionRequest) returns (BatchGrantScopePermissionResponse) {};
   rpc RevokeScopePermission (RevokeScopePermissionRequest) returns (RevokeScopePermissionResponse) {};
@@ -26,10 +28,24 @@ message FetchObjectResponse {
 message PutObjectRequest {
   ObjectWithMeta object = 1;
   repeated io.provenance.scope.PublicKey additional_audience_keys = 2;
+  bool use_requester_key = 3;
 }
 
 message PutObjectResponse {
   string hash = 1; // base64-encoded object hash (sha-256 of provided ObjectWithMeta [object] serialized proto)
+}
+
+/**
+ * Allows registering pre-existing object-store objects so that they may be fetched and managed in the same way as objects stored via
+ * the PutObject route
+ */
+message RegisterExistingObjectRequest {
+  string hash = 1; // the hash of the object in object store (the caller's access to this object will be verified during the course of this call)
+  repeated string grantee_address = 2; // addresses that should have access to fetch this object via the FetchObjectByHash rpc
+}
+
+message RegisterExistingObjectResponse {
+    RegisterExistingObjectRequest request = 1;
 }
 
 message FetchObjectByHashRequest {
@@ -38,6 +54,14 @@ message FetchObjectByHashRequest {
 
 message FetchObjectByHashResponse {
   ObjectWithMeta object = 1;
+}
+
+message RevokeObjectPermissionsRequest {
+  string hash = 1; // the hash of the object to revoke permissions for
+  repeated string grantee_address = 2; // the addresses to revoke access to this hash for
+}
+message RevokeObjectPermissionsResponse {
+  RevokeObjectPermissionsRequest request = 1;
 }
 
 message GrantScopePermissionRequest {

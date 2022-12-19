@@ -58,10 +58,24 @@ class ObjectStoreGatewayServer(
         request: GatewayOuterClass.PutObjectRequest,
         responseObserver: StreamObserver<GatewayOuterClass.PutObjectResponse>
     ) {
-        objectService.putObject(request.`object`, publicKey(), request.additionalAudienceKeysList.map { it.toPublicKey() }).let {
+        objectService.putObject(request.`object`, publicKey(), request.additionalAudienceKeysList.map { it.toPublicKey() }, useRequesterKey = request.useRequesterKey).let {
+        responseObserver.onNext(
+            GatewayOuterClass.PutObjectResponse.newBuilder()
+                .setHash(it)
+                .build()
+        )
+    }
+        responseObserver.onCompleted()
+    }
+
+    override fun registerExistingObject(
+        request: GatewayOuterClass.RegisterExistingObjectRequest,
+        responseObserver: StreamObserver<GatewayOuterClass.RegisterExistingObjectResponse>
+    ) {
+        objectService.registerExistingObject(request.hash, publicKey(), request.granteeAddressList).let {
             responseObserver.onNext(
-                GatewayOuterClass.PutObjectResponse.newBuilder()
-                    .setHash(it)
+                GatewayOuterClass.RegisterExistingObjectResponse.newBuilder()
+                    .setRequest(request)
                     .build()
             )
         }
@@ -80,6 +94,20 @@ class ObjectStoreGatewayServer(
             )
             responseObserver.onCompleted()
         }
+    }
+
+    override fun revokeObjectPermissions(
+        request: GatewayOuterClass.RevokeObjectPermissionsRequest,
+        responseObserver: StreamObserver<GatewayOuterClass.RevokeObjectPermissionsResponse>
+    ) {
+        objectService.revokeAccess(request.hash, address(), request.granteeAddressList).let {
+            responseObserver.onNext(
+                GatewayOuterClass.RevokeObjectPermissionsResponse.newBuilder()
+                    .setRequest(request)
+                    .build()
+            )
+        }
+        responseObserver.onCompleted()
     }
 
     override fun grantScopePermission(
