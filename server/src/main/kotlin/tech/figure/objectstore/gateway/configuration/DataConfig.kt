@@ -105,11 +105,13 @@ class DataConfig {
         databaseProperties: DatabaseProperties,
         flyway: Flyway,
         @Qualifier(BeanQualifiers.OBJECTSTORE_MASTER_KEY) masterKey: KeyRef,
-        provenanceProperties: ProvenanceProperties // todo: remove these two
+        provenanceProperties: ProvenanceProperties // todo: remove these two once the temporary storage key block below is removed (and these are then unneeded)
     ): Int {
         flyway.info().all().forEach { logger.info("Flyway migration: ${it.script}") }
         return flyway.migrate().migrationsExecuted.also {
-            // todo: remove this block
+            // todo: remove this block once this has been deployed out to test/prod (and the next migration to make storage_key_address not nullable is in here
+            // this is here since we can't get the master key's address in a regular migration, and that is the key that was used for all objects stored
+            // via gateway before this key was being tracked
             val storageKeyAddress = masterKey.publicKey.getAddress(provenanceProperties.mainNet)
             logger.info("Updating storage key from null -> $storageKeyAddress")
             transaction {

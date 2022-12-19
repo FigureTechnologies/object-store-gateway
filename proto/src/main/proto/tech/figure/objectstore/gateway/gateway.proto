@@ -36,7 +36,7 @@ message PutObjectResponse {
 }
 
 /**
- * Allows registering pre-existing object-store objects so that they may be fetched and managed in the same way as objects troed via
+ * Allows registering pre-existing object-store objects so that they may be fetched and managed in the same way as objects stored via
  * the PutObject route
  */
 message RegisterExistingObjectRequest {
@@ -45,7 +45,7 @@ message RegisterExistingObjectRequest {
 }
 
 message RegisterExistingObjectResponse {
-
+    RegisterExistingObjectRequest request = 1;
 }
 
 message FetchObjectByHashRequest {
@@ -61,7 +61,7 @@ message RevokeObjectPermissionsRequest {
   repeated string grantee_address = 2; // the addresses to revoke access to this hash for
 }
 message RevokeObjectPermissionsResponse {
-
+  RevokeObjectPermissionsRequest request = 1;
 }
 
 message GrantScopePermissionRequest {

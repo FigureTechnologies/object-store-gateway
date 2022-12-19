@@ -74,7 +74,9 @@ class ObjectStoreGatewayServer(
     ) {
         objectService.registerExistingObject(request.hash, publicKey(), request.granteeAddressList).let {
             responseObserver.onNext(
-                GatewayOuterClass.RegisterExistingObjectResponse.getDefaultInstance()
+                GatewayOuterClass.RegisterExistingObjectResponse.newBuilder()
+                    .setRequest(request)
+                    .build()
             )
         }
         responseObserver.onCompleted()
@@ -100,7 +102,9 @@ class ObjectStoreGatewayServer(
     ) {
         objectService.revokeAccess(request.hash, address(), request.granteeAddressList).let {
             responseObserver.onNext(
-                GatewayOuterClass.RevokeObjectPermissionsResponse.getDefaultInstance()
+                GatewayOuterClass.RevokeObjectPermissionsResponse.newBuilder()
+                    .setRequest(request)
+                    .build()
             )
         }
         responseObserver.onCompleted()
