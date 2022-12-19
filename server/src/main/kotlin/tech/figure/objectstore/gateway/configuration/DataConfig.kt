@@ -2,6 +2,8 @@ package tech.figure.objectstore.gateway.configuration
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
+import io.provenance.scope.encryption.model.KeyRef
+import io.provenance.scope.encryption.util.getAddress
 import mu.KLogging
 import org.bouncycastle.asn1.x500.style.RFC4519Style.name
 import org.flywaydb.core.Flyway
@@ -11,12 +13,15 @@ import org.jetbrains.exposed.sql.Schema
 import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.sql.update
 import org.jetbrains.exposed.sql.vendors.PostgreSQLDialect
 import org.jetbrains.exposed.sql.vendors.SQLiteDialect
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.autoconfigure.flyway.FlywayMigrationInitializer
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
+import tech.figure.objectstore.gateway.model.ObjectPermissionsTable
 import java.sql.Connection
 import javax.sql.DataSource
 
@@ -95,8 +100,23 @@ class DataConfig {
     fun flywayInitializer(flyway: Flyway): FlywayMigrationInitializer = FlywayMigrationInitializer(flyway)
 
     @Bean("MigrationsExecuted")
-    fun flywayMigration(dataSource: DataSource, databaseProperties: DatabaseProperties, flyway: Flyway): Int {
+    fun flywayMigration(
+        dataSource: DataSource,
+        databaseProperties: DatabaseProperties,
+        flyway: Flyway,
+        @Qualifier(BeanQualifiers.OBJECTSTORE_MASTER_KEY) masterKey: KeyRef,
+        provenanceProperties: ProvenanceProperties // todo: remove these two
+    ): Int {
         flyway.info().all().forEach { logger.info("Flyway migration: ${it.script}") }
-        return flyway.migrate().migrationsExecuted
+        return flyway.migrate().migrationsExecuted.also {
+            // todo: remove this block
+            val storageKeyAddress = masterKey.publicKey.getAddress(provenanceProperties.mainNet)
+            logger.info("Updating storage key from null -> $storageKeyAddress")
+            transaction {
+                ObjectPermissionsTable.update({ ObjectPermissionsTable.storageKeyAddress.isNull() }, null) {
+                it.set(ObjectPermissionsTable.storageKeyAddress, storageKeyAddress)
+            }
+            }
+        }
     }
 }
