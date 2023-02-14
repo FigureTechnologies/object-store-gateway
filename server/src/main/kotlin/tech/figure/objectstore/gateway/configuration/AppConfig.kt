@@ -26,7 +26,6 @@ class AppConfig {
     fun encryptionKeys(provenanceProperties: ProvenanceProperties, objectStoreProperties: ObjectStoreProperties): Map<String, KeyRef> =
         objectStoreProperties.privateKeys
             .filterNot { it.isBlank() }
-            .filterNot { it.isEmpty() }
             .map {
                 it.toJavaPrivateKey().toKeyPair().let { keyPair ->
                     keyPair.public.getAddress(provenanceProperties.mainNet) to DirectKeyRef(keyPair)
