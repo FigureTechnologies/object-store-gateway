@@ -35,7 +35,7 @@ class ObjectService(
         val requesterAddress = requesterPublicKey.getAddress(provenanceProperties.mainNet)
         // Always allow the master key data storage rights
         if (requesterAddress != masterAddress && !encryptionKeys.keys.contains(requesterAddress) && !accountsRepository.isAddressEnabled(requesterAddress)) {
-            throw AccessDeniedException("Object storage not granted to $requesterAddress")
+            throw AccessDeniedException("Object storage not granted to $requesterAddress [masterAddress: $masterAddress, isMainNet: ${provenanceProperties.mainNet}]")
         }
 
         val encryptionKey = if (!useRequesterKey) {

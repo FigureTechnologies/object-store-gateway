@@ -26,11 +26,11 @@ class AppConfig {
     fun encryptionKeys(provenanceProperties: ProvenanceProperties, objectStoreProperties: ObjectStoreProperties): Map<String, KeyRef> =
         objectStoreProperties.privateKeys
             .filterNot { it.isBlank() }
-            .map {
+            .associate {
                 it.toJavaPrivateKey().toKeyPair().let { keyPair ->
                     keyPair.public.getAddress(provenanceProperties.mainNet) to DirectKeyRef(keyPair)
                 }
-            }.toMap()
+            }
 
     @Bean(BeanQualifiers.OBJECTSTORE_MASTER_KEY)
     fun masterKey(objectStoreProperties: ObjectStoreProperties): KeyRef = objectStoreProperties.masterKey.toJavaPrivateKey().toKeyPair().let(::DirectKeyRef)
