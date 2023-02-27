@@ -72,6 +72,7 @@ sealed interface GatewayJwt {
      *
      * @param keyPair The public and private keys of the requesting entity.
      */
+    @Suppress("DEPRECATION")
     data class KeyPairJwt(val keyPair: KeyPair) : GatewayJwt {
         override fun createJwt(mainNet: Boolean, expiresAt: OffsetDateTime): String = createJwtInternal(
             publicKey = keyPair.public,
