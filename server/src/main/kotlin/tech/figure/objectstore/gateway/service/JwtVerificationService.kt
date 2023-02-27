@@ -18,6 +18,7 @@ data class VerificationResult(val address: String, val publicKey: PublicKey)
 class JwtVerificationService {
     fun verifyJwtString(jwt: String) = verifyJwt(JWT.decode(jwt))
 
+    @Suppress("DEPRECATION")
     fun verifyJwt(jwt: DecodedJWT): VerificationResult {
         val publicKey = jwt.claims.get(Constants.JWT_PUBLIC_KEY)
             ?.asString()

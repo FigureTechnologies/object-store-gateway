@@ -16,6 +16,7 @@ class KeyRefSecP256K1Algorithm(
         deterministic = false
     }
 
+    @Suppress("DEPRECATION")
     override fun verify(jwt: DecodedJWT) {
         // Delegate verification to regular ECDSA256K algo, since it only needs the public key
         JWT.require(ECDSA256K(signer.getPublicKey() as ECPublicKey, null))

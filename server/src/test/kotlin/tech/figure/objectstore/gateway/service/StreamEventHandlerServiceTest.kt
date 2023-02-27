@@ -30,6 +30,7 @@ import tech.figure.objectstore.gateway.model.ScopePermission
 import tech.figure.objectstore.gateway.model.ScopePermissionsTable
 import tech.figure.objectstore.gateway.repository.ScopePermissionsRepository
 import tech.figure.objectstore.gateway.util.toByteString
+import java.math.BigInteger
 import java.time.OffsetDateTime
 import java.util.Base64
 import java.util.UUID
@@ -287,7 +288,7 @@ class StreamEventHandlerServiceTest {
         txHash: String = "txHash",
         eventType: String = "wasm",
         attributes: List<Pair<String, String>>,
-        fee: Long = 1000L,
+        fee: BigInteger = 1000L.toBigInteger(),
         denom: String = "nhash",
         note: String = "test event",
     ) {

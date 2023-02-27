@@ -52,11 +52,11 @@ dependencies {
 protobuf {
     // Configure the protoc executable
     protoc {
-        artifact = "com.google.protobuf:protoc:3.5.0"
+        artifact = "com.google.protobuf:protoc:${libs.versions.protobuf.get()}"
     }
     plugins {
         id("grpc") {
-            artifact = "io.grpc:protoc-gen-grpc-java:1.0.0-pre2"
+            artifact = "io.grpc:protoc-gen-grpc-java:1.42.1"
         }
     }
     generateProtoTasks {
