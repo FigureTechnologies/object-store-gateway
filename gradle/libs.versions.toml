@@ -2,7 +2,7 @@
 asset-model = "0.1.2"
 bouncycastle = "1.70"
 exposed = "0.37.3"
-figure-eventstream = "0.7.1"
+figure-eventstream = "0.8.1"
 flyway = "8.0.2"
 grpc = "1.45.1" # If updating this value, ensure to update the doc reference in the ClientConfig class
 grpc-springboot = "3.4.3"
