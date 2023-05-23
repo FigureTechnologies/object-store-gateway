@@ -14,12 +14,17 @@ import io.provenance.hdwallet.ec.extensions.toJavaECKeyPair
 import io.provenance.hdwallet.wallet.Account
 import io.provenance.metadata.v1.PartyType
 import io.provenance.scope.encryption.ecies.ProvenanceKeyGenerator
+import io.provenance.scope.encryption.model.DirectKeyRef
 import io.provenance.scope.encryption.util.getAddress
 import io.provenance.scope.encryption.util.toPublicKey
+import io.provenance.scope.objectstore.client.CachedOsClient
 import io.provenance.scope.sdk.toPublicKeyProto
 import io.provenance.scope.util.MetadataAddress
+import io.provenance.scope.util.base64String
 import io.provenance.scope.util.sha256String
 import io.provenance.scope.util.toByteString
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.TestCoroutineScope
 import org.jetbrains.exposed.sql.deleteAll
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -47,11 +52,13 @@ import tech.figure.objectstore.gateway.helpers.mockkObserver
 import tech.figure.objectstore.gateway.helpers.objectFromParts
 import tech.figure.objectstore.gateway.helpers.queryGrantCount
 import tech.figure.objectstore.gateway.model.ScopePermissionsTable
+import tech.figure.objectstore.gateway.repository.ObjectPermissionsRepository
 import tech.figure.objectstore.gateway.repository.ScopePermissionsRepository
 import tech.figure.objectstore.gateway.service.AddressVerificationService
 import tech.figure.objectstore.gateway.service.ObjectService
 import tech.figure.objectstore.gateway.service.ScopeFetchService
 import tech.figure.objectstore.gateway.service.ScopePermissionsService
+import java.net.URI
 import java.security.KeyPair
 import java.util.UUID
 import kotlin.random.Random
@@ -60,12 +67,14 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @SpringBootTest
+@OptIn(ExperimentalCoroutinesApi::class)
 class ObjectStoreGatewayServerTest {
     lateinit var addressVerificationService: AddressVerificationService
     lateinit var scopeFetchService: ScopeFetchService
     lateinit var scopePermissionsService: ScopePermissionsService
     lateinit var scopePermissionsRepository: ScopePermissionsRepository
     lateinit var objectService: ObjectService
+    lateinit var objectStoreClient: CachedOsClient
     lateinit var provenanceProperties: ProvenanceProperties
     val keyPair: KeyPair = ProvenanceKeyGenerator.generateKeyPair()
     val masterAccount: Account = genRandomAccount()
@@ -84,10 +93,11 @@ class ObjectStoreGatewayServerTest {
     fun setUpBaseServices(
         accountAddresses: Set<String> = setOf(defaultGranter),
         contextKeyPair: KeyPair = keyPair,
+        constructObjectService: () -> ObjectService = { mockk() },
     ) {
         scopeFetchService = mockk()
+        objectStoreClient = mockk()
         scopePermissionsRepository = spyk()
-        objectService = mockk()
         provenanceProperties = mockk()
         addressVerificationService = AddressVerificationService(provenanceProperties = provenanceProperties)
 
@@ -104,6 +114,7 @@ class ObjectStoreGatewayServerTest {
             scopeFetchService = scopeFetchService,
             scopePermissionsRepository = scopePermissionsRepository,
         )
+        objectService = constructObjectService()
         server = ObjectStoreGatewayServer(
             masterKey = masterAccount.keyRef,
             scopeFetchService = scopeFetchService,
@@ -225,6 +236,45 @@ class ObjectStoreGatewayServerTest {
             )
             responseObserver.onCompleted()
         }
+    }
+
+    @Test
+    fun `grantObjectPermissions should reject access grant for nonexistent object`() {
+        val repository = ObjectPermissionsRepository()
+        val responseObserver = mockkObserver<GatewayOuterClass.GrantObjectPermissionsResponse>()
+        val ownerAddress = keyPair.public.getAddress(false)
+        setUpBaseServices {
+            ObjectService(
+                accountsRepository = mockk(),
+                addressVerificationService = addressVerificationService,
+                batchProperties = mockk(),
+                batchProcessScope = TestCoroutineScope(),
+                objectStoreClient = objectStoreClient,
+                encryptionKeys = mapOf(ownerAddress to DirectKeyRef(keyPair)),
+                masterKey = masterAccount.keyRef,
+                objectPermissionsRepository = repository,
+                provenanceProperties = ProvenanceProperties(mainNet = false, chainId = "testing", channelUri = URI.create("http://doesntmatter.com")),
+            )
+        }
+        val objectBytes = Random.nextBytes(100)
+        val obj = objectFromParts(objectBytes, "some_type")
+        val byteHash = objectBytes.sha256String()
+        every { objectStoreClient.osClient.put(any(), any(), any(), any(), any(), any(), any(), any()).get().hash } returns byteHash.toByteString()
+        val hash = objectService.putObject(
+            obj = obj,
+            requesterPublicKey = keyPair.public,
+            useRequesterKey = true,
+        )
+        assertEquals(
+            expected = byteHash.toByteArray().base64String(),
+            actual = hash,
+            message = "Output hash doesn't match mocked hash result",
+        )
+        objectService.grantAccess(
+            hash = hash,
+            granteeAddress = genRandomAccount().bech32Address,
+            granterAddress = ownerAddress,
+        )
     }
 
     @Test

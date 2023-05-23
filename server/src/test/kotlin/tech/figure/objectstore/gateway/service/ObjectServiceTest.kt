@@ -47,6 +47,7 @@ import kotlin.test.fail
 @OptIn(ExperimentalCoroutinesApi::class)
 class ObjectServiceTest {
     lateinit var accountsRepository: DataStorageAccountsRepository
+    lateinit var addressVerificationService: AddressVerificationService
     lateinit var batchProperties: BatchProperties
     lateinit var batchScope: CoroutineScope
     lateinit var osClient: CachedOsClient
@@ -69,6 +70,7 @@ class ObjectServiceTest {
     @BeforeEach
     fun setUp() {
         accountsRepository = mockk()
+        addressVerificationService = mockk()
         batchScope = TestCoroutineScope()
         osClient = mockk()
         objectPermissionsRepository = mockk()
@@ -78,6 +80,7 @@ class ObjectServiceTest {
 
         objectService = ObjectService(
             accountsRepository = accountsRepository,
+            addressVerificationService = addressVerificationService,
             batchProperties = batchProperties,
             objectStoreClient = osClient,
             encryptionKeys = registeredEncryptionKeys,

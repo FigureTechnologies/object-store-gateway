@@ -24,12 +24,14 @@ import tech.figure.objectstore.gateway.exception.ExistingGrantException
 import tech.figure.objectstore.gateway.exception.InvalidInputException
 import tech.figure.objectstore.gateway.repository.DataStorageAccountsRepository
 import tech.figure.objectstore.gateway.repository.ObjectPermissionsRepository
+import tech.figure.objectstore.gateway.service.Bech32Verification.Failure
 import java.io.ByteArrayInputStream
 import java.security.PublicKey
 
 @Component
 class ObjectService(
     private val accountsRepository: DataStorageAccountsRepository,
+    private val addressVerificationService: AddressVerificationService,
     private val batchProperties: BatchProperties,
     @Qualifier(BeanQualifiers.BATCH_PROCESS_COROUTINE_SCOPE_QUALIFIER) private val batchProcessScope: CoroutineScope,
     private val objectStoreClient: CachedOsClient,
@@ -150,6 +152,12 @@ class ObjectService(
             objectHash = hash,
             granterAddress = granterAddress,
         )
+        if (addressVerificationService.verifyAccountAddress(granteeAddress) is Failure) {
+            throw AccessDeniedException("Grantee address [$granteeAddress] is not valid")
+        }
+        if (addressVerificationService.verifyAccountAddress(granterAddress) is Failure) {
+            throw AccessDeniedException("Granter address [$granterAddress] is not valid")
+        }
         if (existingObjects.isEmpty()) {
             throw AccessDeniedException("Granter [$granterAddress] has no authority to grant on hash [$hash]")
         }
