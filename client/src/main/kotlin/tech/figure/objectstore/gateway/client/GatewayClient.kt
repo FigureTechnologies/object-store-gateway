@@ -7,10 +7,15 @@ import io.grpc.stub.AbstractStub
 import io.grpc.stub.MetadataUtils
 import io.provenance.scope.sdk.toPublicKeyProto
 import io.provenance.scope.util.toByteString
+import kotlinx.coroutines.flow.Flow
 import tech.figure.objectstore.gateway.GatewayGrpc
+import tech.figure.objectstore.gateway.GatewayGrpcKt
 import tech.figure.objectstore.gateway.GatewayOuterClass
+import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantObjectPermissionRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantScopePermissionRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantScopePermissionResponse
+import tech.figure.objectstore.gateway.GatewayOuterClass.GrantObjectPermissionsRequest
+import tech.figure.objectstore.gateway.GatewayOuterClass.GrantObjectPermissionsResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.GrantScopePermissionRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.GrantScopePermissionResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.PutObjectResponse
@@ -47,6 +52,7 @@ class GatewayClient(val config: ClientConfig) : Closeable {
         .build()
 
     private val gatewayStub = GatewayGrpc.newFutureStub(channel)
+    private val gatewayCoroutineStub = GatewayGrpcKt.GatewayCoroutineStub(channel)
     private val gatewayAdminStub = GatewayAdminGrpc.newFutureStub(channel)
 
     /**
@@ -323,6 +329,33 @@ class GatewayClient(val config: ClientConfig) : Closeable {
         .fetchDataStorageAccount(FetchDataStorageAccountRequest.newBuilder().setAddress(address).build())
         .get()
         .account
+
+    fun grantObjectPermissions(
+        objectHash: String,
+        granteeAddress: String,
+        jwt: GatewayJwt,
+        timeout: Duration = GatewayJwt.DEFAULT_TIMEOUT,
+    ): GrantObjectPermissionsResponse = gatewayStub.withDeadline(Deadline.after(timeout.seconds, TimeUnit.SECONDS))
+        .interceptJwt(jwt, timeout)
+        .grantObjectPermissions(GrantObjectPermissionsRequest.newBuilder().setHash(objectHash).setGranteeAddress(granteeAddress).build())
+        .get()
+
+    fun batchGrantObjectPermissions(
+        granteeAddress: String,
+        providedObjectHashes: Collection<String>? = null,
+        jwt: GatewayJwt,
+        jwtExpireAfter: Duration = GatewayJwt.DEFAULT_TIMEOUT,
+    ): Flow<GrantObjectPermissionsResponse> = gatewayCoroutineStub.interceptJwt(jwt, jwtExpireAfter)
+        .batchGrantObjectPermissions(
+            request = BatchGrantObjectPermissionRequest.newBuilder().also { request ->
+                if (providedObjectHashes != null) {
+                    request.specifiedHashesBuilder.granteeAddress = granteeAddress
+                    request.specifiedHashesBuilder.addAllTargetHashes(providedObjectHashes)
+                } else {
+                    request.allHashesBuilder.granteeAddress = granteeAddress
+                }
+            }.build(),
+        )
 
     override fun close() {
         channel.shutdown()

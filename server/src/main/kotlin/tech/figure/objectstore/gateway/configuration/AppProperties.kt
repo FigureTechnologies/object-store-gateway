@@ -8,6 +8,14 @@ import java.net.URI
 import java.util.UUID
 
 @ConstructorBinding
+@ConfigurationProperties(prefix = "batch")
+@Validated
+data class BatchProperties(
+    val maxProvidedRecords: Int,
+    val threadCount: Int,
+)
+
+@ConstructorBinding
 @ConfigurationProperties(prefix = "event.stream")
 @Validated
 data class EventStreamProperties(

@@ -9,6 +9,8 @@ service Gateway {
   rpc PutObject (PutObjectRequest) returns (PutObjectResponse) {};
   rpc RegisterExistingObject (RegisterExistingObjectRequest) returns (RegisterExistingObjectResponse) {};
   rpc FetchObjectByHash (FetchObjectByHashRequest) returns (FetchObjectByHashResponse) {};
+  rpc GrantObjectPermissions (GrantObjectPermissionsRequest) returns (GrantObjectPermissionsResponse) {};
+  rpc BatchGrantObjectPermissions (BatchGrantObjectPermissionRequest) returns (stream GrantObjectPermissionsResponse) {};
   rpc RevokeObjectPermissions (RevokeObjectPermissionsRequest) returns (RevokeObjectPermissionsResponse) {};
   rpc GrantScopePermission (GrantScopePermissionRequest) returns (GrantScopePermissionResponse) {};
   rpc BatchGrantScopePermission (BatchGrantScopePermissionRequest) returns (BatchGrantScopePermissionResponse) {};
@@ -56,6 +58,22 @@ message FetchObjectByHashResponse {
   ObjectWithMeta object = 1;
 }
 
+message GrantObjectPermissionsRequest {
+  string grantee_address = 1; // A bech32 account address. This grantee will receive an object grant for the target hash
+  string hash = 2; // The hash of the object for which to grant permissions
+}
+
+message GrantObjectPermissionsResponse {
+  GrantObjectPermissionsRequest request = 1; // The request that invoked this action
+}
+
+message BatchGrantObjectPermissionRequest {
+  oneof grant_target {
+    AllHashesObjectGrantTarget all_hashes = 1; // Specifies that all hashes submitted by the granter will receive an object grant
+    SpecifiedHashesObjectGrantTarget specified_hashes = 2; // Specifies that all target hashes submitted by the granter will receive an object grant for the grantee
+  }
+}
+
 message RevokeObjectPermissionsRequest {
   string hash = 1; // the hash of the object to revoke permissions for
   repeated string grantee_address = 2; // the addresses to revoke access to this hash for
@@ -96,6 +114,17 @@ message RevokeScopePermissionResponse {
   RevokeScopePermissionRequest request = 1; // The request that evoked this response
   int32 revoked_grants_count = 2; // The amount of grants that the request successfully revoked
   bool revoke_accepted = 3; // If true, the revoke was successfully processed.  This indicates that the sender had the rights to make the request, even if zero grants were revoked based on the input
+}
+
+// Specifies that all hashes submitted by the granter will receive an object grant for the grantee
+message AllHashesObjectGrantTarget {
+  string grantee_address = 1; // A bech32 account address. Adds an object grant from the granter to all objects submitted by the granter
+}
+
+// Specifies that all target hashes submitted by the granter will receive an object grant for the grantee
+message SpecifiedHashesObjectGrantTarget {
+  string grantee_address = 1; // A bech32 account address. Adds an object grant from the granter to the target hashes
+  repeated string target_hashes = 2; // All hashes for which to grant permissions
 }
 
 message ObjectWithMeta {
