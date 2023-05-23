@@ -20,8 +20,8 @@ import tech.figure.objectstore.gateway.configuration.BatchProperties
 import tech.figure.objectstore.gateway.configuration.BeanQualifiers
 import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
 import tech.figure.objectstore.gateway.exception.AccessDeniedException
-import tech.figure.objectstore.gateway.exception.ExistingGrantException
 import tech.figure.objectstore.gateway.exception.InvalidInputException
+import tech.figure.objectstore.gateway.exception.ResourceAlreadyExistsException
 import tech.figure.objectstore.gateway.repository.DataStorageAccountsRepository
 import tech.figure.objectstore.gateway.repository.ObjectPermissionsRepository
 import tech.figure.objectstore.gateway.service.Bech32Verification.Failure
@@ -162,7 +162,7 @@ class ObjectService(
             throw AccessDeniedException("Granter [$granterAddress] has no authority to grant on hash [$hash]")
         }
         if (existingObjects.any { it.granteeAddress == granteeAddress }) {
-            throw ExistingGrantException("Grantee [$granteeAddress] has already been granted permissions to hash [$hash]")
+            throw ResourceAlreadyExistsException("Grantee [$granteeAddress] has already been granted permissions to hash [$hash]")
         }
         val existingObject = existingObjects.first()
         objectPermissionsRepository.addAccessPermission(

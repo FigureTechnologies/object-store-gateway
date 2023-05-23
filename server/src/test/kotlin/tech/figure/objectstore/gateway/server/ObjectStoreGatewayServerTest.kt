@@ -20,7 +20,6 @@ import io.provenance.scope.encryption.util.toPublicKey
 import io.provenance.scope.objectstore.client.CachedOsClient
 import io.provenance.scope.sdk.toPublicKeyProto
 import io.provenance.scope.util.MetadataAddress
-import io.provenance.scope.util.base64String
 import io.provenance.scope.util.sha256String
 import io.provenance.scope.util.toByteString
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -34,12 +33,16 @@ import org.springframework.boot.test.context.SpringBootTest
 import tech.figure.objectstore.gateway.GatewayOuterClass
 import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantScopePermissionRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantScopePermissionResponse
+import tech.figure.objectstore.gateway.GatewayOuterClass.GrantObjectPermissionsRequest
+import tech.figure.objectstore.gateway.GatewayOuterClass.GrantObjectPermissionsResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.GrantScopePermissionRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.GrantScopePermissionResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.RevokeScopePermissionRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.RevokeScopePermissionResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.ScopeGrantee
 import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
+import tech.figure.objectstore.gateway.exception.AccessDeniedException
+import tech.figure.objectstore.gateway.exception.ResourceAlreadyExistsException
 import tech.figure.objectstore.gateway.helpers.bech32Address
 import tech.figure.objectstore.gateway.helpers.createErrorSlot
 import tech.figure.objectstore.gateway.helpers.genRandomAccount
@@ -63,6 +66,8 @@ import java.security.KeyPair
 import java.util.UUID
 import kotlin.random.Random
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -239,23 +244,9 @@ class ObjectStoreGatewayServerTest {
     }
 
     @Test
-    fun `grantObjectPermissions should reject access grant for nonexistent object`() {
-        val repository = ObjectPermissionsRepository()
-        val responseObserver = mockkObserver<GatewayOuterClass.GrantObjectPermissionsResponse>()
-        val ownerAddress = keyPair.public.getAddress(false)
-        setUpBaseServices {
-            ObjectService(
-                accountsRepository = mockk(),
-                addressVerificationService = addressVerificationService,
-                batchProperties = mockk(),
-                batchProcessScope = TestCoroutineScope(),
-                objectStoreClient = objectStoreClient,
-                encryptionKeys = mapOf(ownerAddress to DirectKeyRef(keyPair)),
-                masterKey = masterAccount.keyRef,
-                objectPermissionsRepository = repository,
-                provenanceProperties = ProvenanceProperties(mainNet = false, chainId = "testing", channelUri = URI.create("http://doesntmatter.com")),
-            )
-        }
+    fun `grantObjectPermissions should successfully grant permission to grantee`() {
+        val responseObserver = mockkObserver<GrantObjectPermissionsResponse>()
+        setUpBaseServicesAndObjectService()
         val objectBytes = Random.nextBytes(100)
         val obj = objectFromParts(objectBytes, "some_type")
         val byteHash = objectBytes.sha256String()
@@ -265,16 +256,135 @@ class ObjectStoreGatewayServerTest {
             requesterPublicKey = keyPair.public,
             useRequesterKey = true,
         )
-        assertEquals(
-            expected = byteHash.toByteArray().base64String(),
-            actual = hash,
-            message = "Output hash doesn't match mocked hash result",
+        val granteeAddress = genRandomAccount().bech32Address
+        val request = GrantObjectPermissionsRequest.newBuilder().also { request ->
+            request.hash = hash
+            request.granteeAddress = granteeAddress
+        }.build()
+        server.grantObjectPermissions(request = request, responseObserver = responseObserver)
+        verify { responseObserver.onNext(GrantObjectPermissionsResponse.newBuilder().setRequest(request).build()) }
+        ObjectPermissionsRepository().getAccessPermission(objectHash = hash, granteeAddress = granteeAddress).also { permission ->
+            assertNotNull(
+                actual = permission,
+                message = "The permission should be granted and a record should be ported to the db",
+            )
+        }
+    }
+
+    @Test
+    fun `grantObjectPermissions should reject an invalid grantee`() {
+        setUpBaseServicesAndObjectService()
+        assertFailsWith<AccessDeniedException>("Invalid grantee should be denied upon request") {
+            server.grantObjectPermissions(
+                request = GrantObjectPermissionsRequest.newBuilder().also { request ->
+                    request.hash = "some hash"
+                    request.granteeAddress = "invalid bech32"
+                }.build(),
+                responseObserver = mockkObserver(),
+            )
+        }.also { exception ->
+            assertEquals(
+                expected = "PERMISSION_DENIED: Grantee address [invalid bech32] is not valid",
+                actual = exception.message,
+                message = "Unexpected exception text after invalid grantee address",
+            )
+        }
+    }
+
+    @Test
+    fun `grantObjectPermissions should reject a request that points to an unknown hash`() {
+        setUpBaseServicesAndObjectService()
+        assertFailsWith<AccessDeniedException>("Unknown hash should be denied upon request") {
+            server.grantObjectPermissions(
+                request = GrantObjectPermissionsRequest.newBuilder().also { request ->
+                    request.hash = "some hash"
+                    request.granteeAddress = genRandomAccount().bech32Address
+                }.build(),
+                responseObserver = mockkObserver(),
+            )
+        }.also { exception ->
+            assertEquals(
+                expected = "PERMISSION_DENIED: Granter [${keyPair.public.getAddress(false)}] has no authority to grant on hash [some hash]",
+                actual = exception.message,
+                message = "Unexpected exception text after nonexistent hash",
+            )
+        }
+    }
+
+    @Test
+    fun `grantObjectPermissions should reject a request that points to a hash owned by a different account`() {
+        setUpBaseServicesAndObjectService()
+        val objectBytes = Random.nextBytes(100)
+        val obj = objectFromParts(objectBytes, "some_type")
+        val byteHash = objectBytes.sha256String()
+        every { objectStoreClient.osClient.put(any(), any(), any(), any(), any(), any(), any(), any()).get().hash } returns byteHash.toByteString()
+        val hash = objectService.putObject(
+            obj = obj,
+            requesterPublicKey = masterAccount.keyRef.publicKey,
+            useRequesterKey = false,
         )
-        objectService.grantAccess(
-            hash = hash,
-            granteeAddress = genRandomAccount().bech32Address,
-            granterAddress = ownerAddress,
+        assertFailsWith<AccessDeniedException>("Not owned hash should be denied upon request") {
+            server.grantObjectPermissions(
+                request = GrantObjectPermissionsRequest.newBuilder().also { request ->
+                    request.hash = hash
+                    request.granteeAddress = genRandomAccount().bech32Address
+                }.build(),
+                responseObserver = mockkObserver(),
+            )
+        }.also { exception ->
+            assertEquals(
+                expected = "PERMISSION_DENIED: Granter [${keyPair.public.getAddress(false)}] has no authority to grant on hash [$hash]",
+                actual = exception.message,
+                message = "Unexpected exception text unexpected owner",
+            )
+        }
+    }
+
+    @Test
+    fun `grantObjectPermissions should reject a request that tries to create a grant that already exists`() {
+        setUpBaseServicesAndObjectService()
+        val objectBytes = Random.nextBytes(100)
+        val obj = objectFromParts(objectBytes, "some_type")
+        val byteHash = objectBytes.sha256String()
+        every { objectStoreClient.osClient.put(any(), any(), any(), any(), any(), any(), any(), any()).get().hash } returns byteHash.toByteString()
+        val grantee = genRandomAccount()
+        val hash = objectService.putObject(
+            obj = obj,
+            requesterPublicKey = keyPair.public,
+            useRequesterKey = true,
+            additionalAudienceKeys = listOf(grantee.keyRef.publicKey),
         )
+        assertFailsWith<ResourceAlreadyExistsException>("Existing grant should not be considered") {
+            server.grantObjectPermissions(
+                request = GrantObjectPermissionsRequest.newBuilder().also { request ->
+                    request.hash = hash
+                    request.granteeAddress = grantee.bech32Address
+                }.build(),
+                responseObserver = mockkObserver(),
+            )
+        }.also { exception ->
+            assertEquals(
+                expected = "ALREADY_EXISTS: Grantee [${grantee.bech32Address}] has already been granted permissions to hash [$hash]",
+                actual = exception.message,
+                message = "Unexpected exception text after grant already exists",
+            )
+        }
+    }
+
+    fun setUpBaseServicesAndObjectService(objectOwner: KeyPair = keyPair) {
+        setUpBaseServices {
+            ObjectService(
+                accountsRepository = mockk(),
+                addressVerificationService = addressVerificationService,
+                batchProperties = mockk(),
+                batchProcessScope = TestCoroutineScope(),
+                objectStoreClient = objectStoreClient,
+                encryptionKeys = mapOf(objectOwner.public.getAddress(false) to DirectKeyRef(keyPair)),
+                masterKey = masterAccount.keyRef,
+                objectPermissionsRepository = ObjectPermissionsRepository(),
+                provenanceProperties = ProvenanceProperties(mainNet = false, chainId = "testing", channelUri = URI.create("http://doesntmatter.com")),
+            )
+        }
     }
 
     @Test
