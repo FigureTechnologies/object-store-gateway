@@ -33,7 +33,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.SpringBootTest
 import tech.figure.objectstore.gateway.GatewayOuterClass
-import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantObjectPermissionRequest
+import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantObjectPermissionsRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantScopePermissionRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantScopePermissionResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.GrantObjectPermissionsRequest
@@ -264,7 +264,7 @@ class ObjectStoreGatewayServerTest {
             request.granteeAddress = granteeAddress
         }.build()
         server.grantObjectPermissions(request = request, responseObserver = responseObserver)
-        verify { responseObserver.onNext(GrantObjectPermissionsResponse.newBuilder().setRequest(request).build()) }
+        verify { responseObserver.onNext(GrantObjectPermissionsResponse.newBuilder().setHash(request.hash).setGranteeAddress(request.granteeAddress).build()) }
         ObjectPermissionsRepository().getAccessPermission(objectHash = hash, granteeAddress = granteeAddress).also { permission ->
             assertNotNull(
                 actual = permission,
@@ -363,11 +363,11 @@ class ObjectStoreGatewayServerTest {
         val responseObserver = mockkObserver<GrantObjectPermissionsResponse>()
         val interceptedHashes = mutableSetOf<String>()
         every { responseObserver.onNext(any()) } answers { answer ->
-            interceptedHashes += (answer.invocation.args.first() as GrantObjectPermissionsResponse).request.hash
+            interceptedHashes += (answer.invocation.args.first() as GrantObjectPermissionsResponse).hash
         }
         val grantee = genRandomAccount()
         server.batchGrantObjectPermissions(
-            request = BatchGrantObjectPermissionRequest.newBuilder().also { request ->
+            request = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
                 request.allHashesBuilder.granteeAddress = grantee.bech32Address
             }.build(),
             responseObserver = responseObserver,
@@ -391,12 +391,12 @@ class ObjectStoreGatewayServerTest {
         val responseObserver = mockkObserver<GrantObjectPermissionsResponse>()
         val interceptedHashes = mutableSetOf<String>()
         every { responseObserver.onNext(any()) } answers { answer ->
-            interceptedHashes += (answer.invocation.args.first() as GrantObjectPermissionsResponse).request.hash
+            interceptedHashes += (answer.invocation.args.first() as GrantObjectPermissionsResponse).hash
         }
         val grantee = genRandomAccount()
         val targetGrantHashes = hashes.take(4)
         server.batchGrantObjectPermissions(
-            request = BatchGrantObjectPermissionRequest.newBuilder().also { request ->
+            request = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
                 request.specifiedHashesBuilder.addAllTargetHashes(targetGrantHashes)
                 request.specifiedHashesBuilder.granteeAddress = grantee.bech32Address
             }.build(),
@@ -424,7 +424,7 @@ class ObjectStoreGatewayServerTest {
         val responseObserver = mockkObserver<GrantObjectPermissionsResponse>()
         assertFailsWith<InvalidInputException> {
             server.batchGrantObjectPermissions(
-                request = BatchGrantObjectPermissionRequest.newBuilder().also { request ->
+                request = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
                     request.specifiedHashesBuilder.granteeAddress = genRandomAccount().bech32Address
                 }.build(),
                 responseObserver = responseObserver,
@@ -445,7 +445,7 @@ class ObjectStoreGatewayServerTest {
         val responseObserver = mockkObserver<GrantObjectPermissionsResponse>()
         assertFailsWith<InvalidInputException> {
             server.batchGrantObjectPermissions(
-                request = BatchGrantObjectPermissionRequest.newBuilder().also { request ->
+                request = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
                     request.specifiedHashesBuilder.addAllTargetHashes(hashes)
                     request.specifiedHashesBuilder.granteeAddress = genRandomAccount().bech32Address
                 }.build(),

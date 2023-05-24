@@ -11,8 +11,8 @@ import org.lognet.springboot.grpc.GRpcService
 import org.springframework.beans.factory.annotation.Qualifier
 import tech.figure.objectstore.gateway.GatewayGrpc
 import tech.figure.objectstore.gateway.GatewayOuterClass
-import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantObjectPermissionRequest
-import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantObjectPermissionRequest.GrantTargetCase
+import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantObjectPermissionsRequest
+import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantObjectPermissionsRequest.GrantTargetCase
 import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantScopePermissionRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantScopePermissionResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.GrantObjectPermissionsRequest
@@ -108,14 +108,15 @@ class ObjectStoreGatewayServer(
         objectService.grantAccess(request.hash, request.granteeAddress, address()).let {
             responseObserver.onNext(
                 GrantObjectPermissionsResponse.newBuilder()
-                    .setRequest(request)
+                    .setHash(request.hash)
+                    .setGranteeAddress(request.granteeAddress)
                     .build()
             )
         }
     }
 
     override fun batchGrantObjectPermissions(
-        request: BatchGrantObjectPermissionRequest,
+        request: BatchGrantObjectPermissionsRequest,
         responseObserver: StreamObserver<GrantObjectPermissionsResponse>,
     ) {
         val (granteeAddress, targetHashes) = when (request.grantTargetCase) {
@@ -130,8 +131,8 @@ class ObjectStoreGatewayServer(
             emitResponse = { hash, grantee ->
                 responseObserver.onNext(
                     GrantObjectPermissionsResponse.newBuilder().also { response ->
-                        response.requestBuilder.hash = hash
-                        response.requestBuilder.granteeAddress = grantee
+                        response.hash = hash
+                        response.granteeAddress = grantee
                     }.build()
                 )
             },

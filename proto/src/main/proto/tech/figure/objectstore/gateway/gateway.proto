@@ -10,7 +10,7 @@ service Gateway {
   rpc RegisterExistingObject (RegisterExistingObjectRequest) returns (RegisterExistingObjectResponse) {};
   rpc FetchObjectByHash (FetchObjectByHashRequest) returns (FetchObjectByHashResponse) {};
   rpc GrantObjectPermissions (GrantObjectPermissionsRequest) returns (GrantObjectPermissionsResponse) {};
-  rpc BatchGrantObjectPermissions (BatchGrantObjectPermissionRequest) returns (stream GrantObjectPermissionsResponse) {};
+  rpc BatchGrantObjectPermissions (BatchGrantObjectPermissionsRequest) returns (stream GrantObjectPermissionsResponse) {};
   rpc RevokeObjectPermissions (RevokeObjectPermissionsRequest) returns (RevokeObjectPermissionsResponse) {};
   rpc GrantScopePermission (GrantScopePermissionRequest) returns (GrantScopePermissionResponse) {};
   rpc BatchGrantScopePermission (BatchGrantScopePermissionRequest) returns (BatchGrantScopePermissionResponse) {};
@@ -64,10 +64,11 @@ message GrantObjectPermissionsRequest {
 }
 
 message GrantObjectPermissionsResponse {
-  GrantObjectPermissionsRequest request = 1; // The request that invoked this action
+  string grantee_address = 1; // A bech32 account address. This grantee received an object grant for the target hash
+  string hash = 2; // The hash of the object for which permissions were granted
 }
 
-message BatchGrantObjectPermissionRequest {
+message BatchGrantObjectPermissionsRequest {
   oneof grant_target {
     AllHashesObjectGrantTarget all_hashes = 1; // Specifies that all hashes submitted by the granter will receive an object grant
     SpecifiedHashesObjectGrantTarget specified_hashes = 2; // Specifies that all target hashes submitted by the granter will receive an object grant for the grantee
