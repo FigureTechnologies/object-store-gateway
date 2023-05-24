@@ -7,10 +7,15 @@ import io.grpc.stub.AbstractStub
 import io.grpc.stub.MetadataUtils
 import io.provenance.scope.sdk.toPublicKeyProto
 import io.provenance.scope.util.toByteString
+import kotlinx.coroutines.flow.Flow
 import tech.figure.objectstore.gateway.GatewayGrpc
+import tech.figure.objectstore.gateway.GatewayGrpcKt
 import tech.figure.objectstore.gateway.GatewayOuterClass
+import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantObjectPermissionsRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantScopePermissionRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantScopePermissionResponse
+import tech.figure.objectstore.gateway.GatewayOuterClass.GrantObjectPermissionsRequest
+import tech.figure.objectstore.gateway.GatewayOuterClass.GrantObjectPermissionsResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.GrantScopePermissionRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.GrantScopePermissionResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.PutObjectResponse
@@ -47,6 +52,7 @@ class GatewayClient(val config: ClientConfig) : Closeable {
         .build()
 
     private val gatewayStub = GatewayGrpc.newFutureStub(channel)
+    private val gatewayCoroutineStub = GatewayGrpcKt.GatewayCoroutineStub(channel)
     private val gatewayAdminStub = GatewayAdminGrpc.newFutureStub(channel)
 
     /**
@@ -161,6 +167,56 @@ class GatewayClient(val config: ClientConfig) : Closeable {
                     .build()
             ).get()
     }
+
+    /**
+     * Creates an object permission grant from the caller to the grantee.  If the caller does not have access to the
+     * target object, an ACCESS_DENIED error will be emitted.
+     *
+     * @param hash The hash of the object to receive (as returned by [putObject])
+     * @param granteeAddress The bech32 address of the account that will receive access to the object.
+     * @param jwt Any instance of GatewayJwt for use in generating the proper JWT metadata for the request
+     * @param timeout An optional timeout for the request that also controls the timeout for any generated jwt
+     *
+     * @return A proto containing the successfully-granted account's address and the hash of the granted object.
+     */
+    fun grantObjectPermissions(
+        hash: String,
+        granteeAddress: String,
+        jwt: GatewayJwt,
+        timeout: Duration = GatewayJwt.DEFAULT_TIMEOUT,
+    ): GrantObjectPermissionsResponse = gatewayStub.withDeadline(Deadline.after(timeout.seconds, TimeUnit.SECONDS))
+        .interceptJwt(jwt, timeout)
+        .grantObjectPermissions(GrantObjectPermissionsRequest.newBuilder().setHash(hash).setGranteeAddress(granteeAddress).build())
+        .get()
+
+    /**
+     * Creates object permission grants from the caller to the grantee for all, or a specific number of hashes.  If the
+     * caller does not have access to a target hash, that requested grant will be ignored.  This returns a coroutine Flow
+     * that will emit protos containing the grantee address and granted object hash for each grant that is created
+     * throughout this process. The flow will terminate after all grants have been created.
+     *
+     * @param granteeAddress The bech32 address of the account that will receive access to objects.
+     * @param providedObjectHashes If null, all objects owned by the granter will be granted to the grantee. If provided,
+     * only the hashes in this value will be granted to the grantee.
+     * @param jwt Any instance of GatewayJwt for use in generating the proper JWT metadata for the request.
+     * @param jwtExpireAfter The time at which the JWT should be validated as expired.
+     */
+    fun batchGrantObjectPermissions(
+        granteeAddress: String,
+        providedObjectHashes: Collection<String>? = null,
+        jwt: GatewayJwt,
+        jwtExpireAfter: Duration = GatewayJwt.DEFAULT_TIMEOUT,
+    ): Flow<GrantObjectPermissionsResponse> = gatewayCoroutineStub.interceptJwt(jwt, jwtExpireAfter)
+        .batchGrantObjectPermissions(
+            request = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
+                if (providedObjectHashes != null) {
+                    request.specifiedHashesBuilder.granteeAddress = granteeAddress
+                    request.specifiedHashesBuilder.addAllTargetHashes(providedObjectHashes)
+                } else {
+                    request.allHashesBuilder.granteeAddress = granteeAddress
+                }
+            }.build(),
+        )
 
     /**
      * Revoke access for a particular object hash to a list of addresses

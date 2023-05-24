@@ -43,7 +43,9 @@ dependencies {
     implementation("javax.annotation:javax.annotation-api:1.3.2")
     listOf(
         libs.bundles.protobuf,
-        libs.bundles.grpc
+        libs.bundles.grpc,
+        libs.coroutines.core.jvm,
+        libs.coroutines.jdk8,
     ).forEach(::implementation)
 
     protobuf(libs.provenance.scope.proto)
@@ -56,7 +58,10 @@ protobuf {
     }
     plugins {
         id("grpc") {
-            artifact = "io.grpc:protoc-gen-grpc-java:1.42.1"
+            artifact = "io.grpc:protoc-gen-grpc-java:${libs.versions.grpc.asProvider().get()}"
+        }
+        id("grpckt") {
+            artifact = "io.grpc:protoc-gen-grpc-kotlin:${libs.versions.grpc.kotlin.get()}:jdk8@jar"
         }
     }
     generateProtoTasks {
@@ -67,6 +72,7 @@ protobuf {
                 // plugin will not be added. This is because of the implicit way
                 // NamedDomainObjectContainer binds the methods.
                 id("grpc")
+                id("grpckt")
             }
         }
     }

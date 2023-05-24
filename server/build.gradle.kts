@@ -48,6 +48,7 @@ dependencies {
     ).forEach(::implementation)
 
     listOf(
+        libs.coroutines.test,
         libs.springboot.starter.test,
         libs.bundles.test.kotlin,
         libs.bundles.testcontainers,

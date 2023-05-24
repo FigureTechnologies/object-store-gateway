@@ -19,10 +19,14 @@ import io.provenance.scope.objectstore.util.base64Decode
 import io.provenance.scope.util.sha256
 import io.provenance.scope.util.sha256String
 import io.provenance.scope.util.toByteString
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.TestCoroutineScope
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.mockito.ArgumentMatchers.any
+import tech.figure.objectstore.gateway.configuration.BatchProperties
 import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
 import tech.figure.objectstore.gateway.exception.AccessDeniedException
 import tech.figure.objectstore.gateway.helpers.mockDime
@@ -40,8 +44,12 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class ObjectServiceTest {
     lateinit var accountsRepository: DataStorageAccountsRepository
+    lateinit var addressVerificationService: AddressVerificationService
+    lateinit var batchProperties: BatchProperties
+    lateinit var batchScope: CoroutineScope
     lateinit var osClient: CachedOsClient
     lateinit var objectPermissionsRepository: ObjectPermissionsRepository
     lateinit var provenanceProperties: ProvenanceProperties
@@ -62,18 +70,24 @@ class ObjectServiceTest {
     @BeforeEach
     fun setUp() {
         accountsRepository = mockk()
+        addressVerificationService = mockk()
+        batchScope = TestCoroutineScope()
         osClient = mockk()
         objectPermissionsRepository = mockk()
 
+        batchProperties = BatchProperties(maxProvidedRecords = 10, threadCount = 10)
         provenanceProperties = ProvenanceProperties(false, "pio-fakenet-1", URI(""))
 
         objectService = ObjectService(
             accountsRepository = accountsRepository,
+            addressVerificationService = addressVerificationService,
+            batchProperties = batchProperties,
             objectStoreClient = osClient,
             encryptionKeys = registeredEncryptionKeys,
             masterKey = masterKey,
             objectPermissionsRepository = objectPermissionsRepository,
             provenanceProperties = provenanceProperties,
+            batchProcessScope = batchScope,
         )
     }
 

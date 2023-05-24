@@ -26,7 +26,19 @@ class ObjectPermissionsRepository {
         ObjectPermission.findByObjectHashAndGranteeAddress(objectHash, granteeAddress)
     }
 
+    fun getAccessPermissionsForGranter(objectHash: String, granterAddress: String): List<ObjectPermission> = transaction {
+        ObjectPermission.findByObjectHashAndGranterAddress(objectHash = objectHash, granterAddress = granterAddress)
+    }
+
     fun revokeAccessPermissions(objectHash: String, granterAddress: String, granteeAddresses: List<String>) = transaction {
         ObjectPermission.deleteByObjectHashGranterAndGranteeAddresses(objectHash, granterAddress, granteeAddresses)
+    }
+
+    fun getAccessPermissionsForGranterByHashes(objectHashes: Collection<String>, granterAddress: String): Map<String, List<ObjectPermission>> = transaction {
+        ObjectPermission.findByObjectHashesAndGranterAddress(objectHashes = objectHashes, granterAddress = granterAddress)
+    }
+
+    fun getAllGranterHashes(granterAddress: String): Set<String> = transaction {
+        ObjectPermission.findHashesByGranterAddress(granterAddress = granterAddress)
     }
 }
