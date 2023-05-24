@@ -11,8 +11,6 @@ import org.lognet.springboot.grpc.GRpcService
 import org.springframework.beans.factory.annotation.Qualifier
 import tech.figure.objectstore.gateway.GatewayGrpc
 import tech.figure.objectstore.gateway.GatewayOuterClass
-import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantObjectPermissionsRequest
-import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantObjectPermissionsRequest.GrantTargetCase
 import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantScopePermissionRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantScopePermissionResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.GrantObjectPermissionsRequest
@@ -22,7 +20,6 @@ import tech.figure.objectstore.gateway.GatewayOuterClass.RevokeScopePermissionRe
 import tech.figure.objectstore.gateway.address
 import tech.figure.objectstore.gateway.configuration.BeanQualifiers
 import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
-import tech.figure.objectstore.gateway.exception.InvalidInputException
 import tech.figure.objectstore.gateway.publicKey
 import tech.figure.objectstore.gateway.server.interceptor.JwtServerInterceptor
 import tech.figure.objectstore.gateway.service.GrantResponse
@@ -114,31 +111,6 @@ class ObjectStoreGatewayServer(
             )
             responseObserver.onCompleted()
         }
-    }
-
-    override fun batchGrantObjectPermissions(
-        request: BatchGrantObjectPermissionsRequest,
-        responseObserver: StreamObserver<GrantObjectPermissionsResponse>,
-    ) {
-        val (granteeAddress, targetHashes) = when (request.grantTargetCase) {
-            GrantTargetCase.ALL_HASHES -> request.allHashes.granteeAddress to null
-            GrantTargetCase.SPECIFIED_HASHES -> request.specifiedHashes.let { it.granteeAddress to it.targetHashesList }
-            else -> throw InvalidInputException("A grant target must be supplied")
-        }
-        objectService.batchGrantAccess(
-            granteeAddress = granteeAddress,
-            granterAddress = address(),
-            targetHashes = targetHashes,
-            emitResponse = { hash, grantee ->
-                responseObserver.onNext(
-                    GrantObjectPermissionsResponse.newBuilder().also { response ->
-                        response.hash = hash
-                        response.granteeAddress = grantee
-                    }.build()
-                )
-            },
-            completeProcess = { responseObserver.onCompleted() },
-        )
     }
 
     override fun revokeObjectPermissions(

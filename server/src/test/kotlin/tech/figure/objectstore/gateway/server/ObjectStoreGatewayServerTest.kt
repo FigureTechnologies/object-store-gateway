@@ -24,8 +24,8 @@ import io.provenance.scope.util.sha256String
 import io.provenance.scope.util.toByteString
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.TestCoroutineScope
 import org.jetbrains.exposed.sql.deleteAll
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -95,6 +95,7 @@ class ObjectStoreGatewayServerTest {
     val masterAccount: Account = genRandomAccount()
 
     lateinit var server: ObjectStoreGatewayServer
+    lateinit var streamServer: ObjectStoreGatewayStreamServer
 
     val defaultGranter: String = genRandomAccount().bech32Address
     val scopeAddress = MetadataAddress.forScope(UUID.randomUUID()).toString()
@@ -137,6 +138,7 @@ class ObjectStoreGatewayServerTest {
             objectService = objectService,
             provenanceProperties = provenanceProperties,
         )
+        streamServer = ObjectStoreGatewayStreamServer(objectService = objectService)
     }
 
     fun setUpScopePermissionValues() {
@@ -360,20 +362,21 @@ class ObjectStoreGatewayServerTest {
     @Test
     fun `batchGrantObjectPermissions should successfully grant all permissions when requested`() {
         setUpBaseServicesAndObjectService()
-        val hashes = (0..10).mapTo(HashSet()) { putTestObject() }
-        val responseObserver = mockkObserver<GrantObjectPermissionsResponse>()
+        val hashes = (0 until 10).mapTo(HashSet()) { putTestObject() }
         val interceptedHashes = mutableSetOf<String>()
-        every { responseObserver.onNext(any()) } answers { answer ->
-            interceptedHashes += (answer.invocation.args.first() as GrantObjectPermissionsResponse).hash
-        }
         val grantee = genRandomAccount()
-        server.batchGrantObjectPermissions(
-            request = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
-                request.allHashesBuilder.granteeAddress = grantee.bech32Address
-            }.build(),
-            responseObserver = responseObserver,
+        runBlocking {
+            streamServer.batchGrantObjectPermissions(
+                request = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
+                    request.allHashesBuilder.granteeAddress = grantee.bech32Address
+                }.build(),
+            ).collect { interceptedHashes += it.hash }
+        }
+        assertEquals(
+            expected = interceptedHashes.size,
+            actual = hashes.size,
+            message = "Expected the amount of hashes encountered to exist in the responses. Got $interceptedHashes, expected $hashes",
         )
-        waitFor(timeoutMessage = "Failed to intercept all expected hashes") { interceptedHashes.size == hashes.size }
         assertTrue(
             actual = interceptedHashes.all { it in hashes },
             message = "Expected all stored hashes $hashes to be intercepted, but got $interceptedHashes",
@@ -383,28 +386,28 @@ class ObjectStoreGatewayServerTest {
             val permission = repository.getAccessPermission(objectHash = interceptedHash, granteeAddress = grantee.bech32Address)
             assertNotNull(actual = permission, message = "Expected the grant to exist in the database")
         }
-        verify { responseObserver.onCompleted() }
     }
 
     @Test
     fun `batchGrantObjectPermissions should successfully grant target permissions when requested`() {
         setUpBaseServicesAndObjectService()
-        val hashes = (0..10).mapTo(HashSet()) { putTestObject() }
-        val responseObserver = mockkObserver<GrantObjectPermissionsResponse>()
+        val hashes = (0 until 10).mapTo(HashSet()) { putTestObject() }
         val interceptedHashes = mutableSetOf<String>()
-        every { responseObserver.onNext(any()) } answers { answer ->
-            interceptedHashes += (answer.invocation.args.first() as GrantObjectPermissionsResponse).hash
-        }
         val grantee = genRandomAccount()
         val targetGrantHashes = hashes.take(4)
-        server.batchGrantObjectPermissions(
-            request = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
-                request.specifiedHashesBuilder.addAllTargetHashes(targetGrantHashes)
-                request.specifiedHashesBuilder.granteeAddress = grantee.bech32Address
-            }.build(),
-            responseObserver = responseObserver,
+        runBlocking {
+            streamServer.batchGrantObjectPermissions(
+                request = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
+                    request.specifiedHashesBuilder.addAllTargetHashes(targetGrantHashes)
+                    request.specifiedHashesBuilder.granteeAddress = grantee.bech32Address
+                }.build(),
+            ).collect { interceptedHashes += it.hash }
+        }
+        assertEquals(
+            expected = interceptedHashes.size,
+            actual = targetGrantHashes.size,
+            message = "Expected the amount of hashes encountered to exist in the responses. Got $interceptedHashes, expected $targetGrantHashes",
         )
-        waitFor(timeoutMessage = "Failed to intercept all expected hashes") { interceptedHashes.size == targetGrantHashes.size }
         assertTrue(
             actual = interceptedHashes.all { it in targetGrantHashes },
             message = "Expected all target hashes $targetGrantHashes to be intercepted, but got $interceptedHashes",
@@ -418,7 +421,6 @@ class ObjectStoreGatewayServerTest {
                 assertNull(actual = permission, message = "Expected an untargeted grant hash to be omitted from grants")
             }
         }
-        verify { responseObserver.onCompleted() }
     }
 
     @Test
@@ -426,12 +428,13 @@ class ObjectStoreGatewayServerTest {
         setUpBaseServicesAndObjectService()
         val responseObserver = mockkObserver<GrantObjectPermissionsResponse>()
         assertFailsWith<InvalidInputException> {
-            server.batchGrantObjectPermissions(
-                request = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
-                    request.specifiedHashesBuilder.granteeAddress = genRandomAccount().bech32Address
-                }.build(),
-                responseObserver = responseObserver,
-            )
+            runBlocking {
+                streamServer.batchGrantObjectPermissions(
+                    request = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
+                        request.specifiedHashesBuilder.granteeAddress = genRandomAccount().bech32Address
+                    }.build(),
+                )
+            }
         }.also { exception ->
             assertEquals(
                 expected = "INVALID_ARGUMENT: Target hash count must be greater than zero",
@@ -445,15 +448,15 @@ class ObjectStoreGatewayServerTest {
     fun `batchGrantScopePermission should fail when specified hash count greater than max allowed records`() {
         setUpBaseServicesAndObjectService()
         val hashes = (0..MAX_PROVIDED_BATCH_RECORDS + 1).mapTo(HashSet()) { putTestObject() }
-        val responseObserver = mockkObserver<GrantObjectPermissionsResponse>()
         assertFailsWith<InvalidInputException> {
-            server.batchGrantObjectPermissions(
-                request = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
-                    request.specifiedHashesBuilder.addAllTargetHashes(hashes)
-                    request.specifiedHashesBuilder.granteeAddress = genRandomAccount().bech32Address
-                }.build(),
-                responseObserver = responseObserver,
-            )
+            runBlocking {
+                streamServer.batchGrantObjectPermissions(
+                    request = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
+                        request.specifiedHashesBuilder.addAllTargetHashes(hashes)
+                        request.specifiedHashesBuilder.granteeAddress = genRandomAccount().bech32Address
+                    }.build(),
+                )
+            }
         }.also { exception ->
             assertEquals(
                 expected = "INVALID_ARGUMENT: Target hash count must be less than maximum value of [$MAX_PROVIDED_BATCH_RECORDS]",
@@ -502,8 +505,7 @@ class ObjectStoreGatewayServerTest {
             ObjectService(
                 accountsRepository = mockk(),
                 addressVerificationService = addressVerificationService,
-                batchProperties = BatchProperties(maxProvidedRecords = MAX_PROVIDED_BATCH_RECORDS, threadCount = 10),
-                batchProcessScope = TestCoroutineScope(),
+                batchProperties = BatchProperties(maxProvidedRecords = MAX_PROVIDED_BATCH_RECORDS),
                 objectStoreClient = objectStoreClient,
                 encryptionKeys = mapOf(objectOwner.public.getAddress(false) to DirectKeyRef(keyPair)),
                 masterKey = masterAccount.keyRef,
