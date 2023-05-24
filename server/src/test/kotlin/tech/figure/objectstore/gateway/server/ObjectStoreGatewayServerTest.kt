@@ -271,6 +271,7 @@ class ObjectStoreGatewayServerTest {
                 message = "The permission should be granted and a record should be ported to the db",
             )
         }
+        verify { responseObserver.onCompleted() }
     }
 
     @Test
@@ -382,6 +383,7 @@ class ObjectStoreGatewayServerTest {
             val permission = repository.getAccessPermission(objectHash = interceptedHash, granteeAddress = grantee.bech32Address)
             assertNotNull(actual = permission, message = "Expected the grant to exist in the database")
         }
+        verify { responseObserver.onCompleted() }
     }
 
     @Test
@@ -416,6 +418,7 @@ class ObjectStoreGatewayServerTest {
                 assertNull(actual = permission, message = "Expected an untargeted grant hash to be omitted from grants")
             }
         }
+        verify { responseObserver.onCompleted() }
     }
 
     @Test

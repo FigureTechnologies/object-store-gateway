@@ -112,6 +112,7 @@ class ObjectStoreGatewayServer(
                     .setGranteeAddress(request.granteeAddress)
                     .build()
             )
+            responseObserver.onCompleted()
         }
     }
 
