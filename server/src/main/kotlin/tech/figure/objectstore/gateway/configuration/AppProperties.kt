@@ -12,7 +12,6 @@ import java.util.UUID
 @Validated
 data class BatchProperties(
     val maxProvidedRecords: Int,
-    val threadCount: Int,
 )
 
 @ConstructorBinding

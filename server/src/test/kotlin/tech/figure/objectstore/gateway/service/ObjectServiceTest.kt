@@ -19,9 +19,7 @@ import io.provenance.scope.objectstore.util.base64Decode
 import io.provenance.scope.util.sha256
 import io.provenance.scope.util.sha256String
 import io.provenance.scope.util.toByteString
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.TestCoroutineScope
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -49,7 +47,6 @@ class ObjectServiceTest {
     lateinit var accountsRepository: DataStorageAccountsRepository
     lateinit var addressVerificationService: AddressVerificationService
     lateinit var batchProperties: BatchProperties
-    lateinit var batchScope: CoroutineScope
     lateinit var osClient: CachedOsClient
     lateinit var objectPermissionsRepository: ObjectPermissionsRepository
     lateinit var provenanceProperties: ProvenanceProperties
@@ -71,11 +68,10 @@ class ObjectServiceTest {
     fun setUp() {
         accountsRepository = mockk()
         addressVerificationService = mockk()
-        batchScope = TestCoroutineScope()
         osClient = mockk()
         objectPermissionsRepository = mockk()
 
-        batchProperties = BatchProperties(maxProvidedRecords = 10, threadCount = 10)
+        batchProperties = BatchProperties(maxProvidedRecords = 10)
         provenanceProperties = ProvenanceProperties(false, "pio-fakenet-1", URI(""))
 
         objectService = ObjectService(
@@ -87,7 +83,6 @@ class ObjectServiceTest {
             masterKey = masterKey,
             objectPermissionsRepository = objectPermissionsRepository,
             provenanceProperties = provenanceProperties,
-            batchProcessScope = batchScope,
         )
     }
 

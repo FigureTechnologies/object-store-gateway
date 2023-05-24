@@ -8,13 +8,14 @@ import io.provenance.scope.objectstore.util.toHex
 import io.provenance.scope.util.NotFoundException
 import io.provenance.scope.util.base64String
 import io.provenance.scope.util.toByteString
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import mu.KLogging
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
 import tech.figure.objectstore.gateway.GatewayOuterClass
+import tech.figure.objectstore.gateway.GatewayOuterClass.GrantObjectPermissionsResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.ObjectWithMeta
 import tech.figure.objectstore.gateway.configuration.BatchProperties
 import tech.figure.objectstore.gateway.configuration.BeanQualifiers
@@ -33,7 +34,6 @@ class ObjectService(
     private val accountsRepository: DataStorageAccountsRepository,
     private val addressVerificationService: AddressVerificationService,
     private val batchProperties: BatchProperties,
-    @Qualifier(BeanQualifiers.BATCH_PROCESS_COROUTINE_SCOPE_QUALIFIER) private val batchProcessScope: CoroutineScope,
     private val objectStoreClient: CachedOsClient,
     @Qualifier(BeanQualifiers.OBJECTSTORE_ENCRYPTION_KEYS) private val encryptionKeys: Map<String, KeyRef>,
     @Qualifier(BeanQualifiers.OBJECTSTORE_MASTER_KEY) private val masterKey: KeyRef,
@@ -44,7 +44,7 @@ class ObjectService(
 
     private val masterAddress = masterKey.publicKey.getAddress(provenanceProperties.mainNet)
 
-    fun putObject(obj: GatewayOuterClass.ObjectWithMeta, requesterPublicKey: PublicKey, additionalAudienceKeys: List<PublicKey> = listOf(), useRequesterKey: Boolean = false): String {
+    fun putObject(obj: ObjectWithMeta, requesterPublicKey: PublicKey, additionalAudienceKeys: List<PublicKey> = listOf(), useRequesterKey: Boolean = false): String {
         val requesterAddress = requesterPublicKey.getAddress(provenanceProperties.mainNet)
         // Always allow the master key data storage rights
         if (requesterAddress != masterAddress && !encryptionKeys.keys.contains(requesterAddress) && !accountsRepository.isAddressEnabled(requesterAddress)) {
@@ -110,7 +110,7 @@ class ObjectService(
         }
     }
 
-    fun getObject(hash: String, requesterAddress: String): GatewayOuterClass.ObjectWithMeta {
+    fun getObject(hash: String, requesterAddress: String): ObjectWithMeta {
         val objectPermission = objectPermissionsRepository.getAccessPermission(hash, requesterAddress)
             ?: throw AccessDeniedException("Object access not granted to $requesterAddress [hash: $hash]")
 
@@ -179,11 +179,9 @@ class ObjectService(
         granteeAddress: String,
         granterAddress: String,
         targetHashes: Collection<String>? = null,
-        emitResponse: (hash: String, grantee: String) -> Unit,
-        completeProcess: () -> Unit,
-    ) = transaction {
+    ): Flow<GrantObjectPermissionsResponse> = transaction {
         val cachedObjects = if (targetHashes != null) {
-            if (targetHashes.size == 0) {
+            if (targetHashes.isEmpty()) {
                 throw InvalidInputException("Target hash count must be greater than zero")
             }
             if (targetHashes.size > batchProperties.maxProvidedRecords) {
@@ -196,33 +194,36 @@ class ObjectService(
         } else {
             null
         }
-        val hashesToGrant = cachedObjects?.keys ?: objectPermissionsRepository.getAllGranterHashes(granterAddress = granterAddress)
-        batchProcessScope.launch {
-            hashesToGrant.map { hash ->
-                batchProcessScope.launch {
-                    val objectToGrant = cachedObjects
-                        ?.get(hash)
-                        ?.firstOrNull()
-                        ?: objectPermissionsRepository
-                            .getAccessPermissionsForGranter(objectHash = hash, granterAddress = granterAddress)
-                            .firstOrNull()
-                    if (objectToGrant == null) {
-                        logger.info { "Skipping object grant for hash [$hash]. It cannot be found for granter [$granterAddress]" }
-                    } else {
-                        logger.info { "ADDING object grant for hash [$hash] to [$granteeAddress] from [$granterAddress]" }
-                        objectPermissionsRepository.addAccessPermission(
-                            objectHash = hash,
-                            granterAddress = granterAddress,
-                            granteeAddress = granteeAddress,
-                            storageKeyAddress = objectToGrant.storageKeyAddress,
-                            objectSizeBytes = objectToGrant.objectSizeBytes,
-                            isObjectWithMeta = objectToGrant.isObjectWithMeta,
-                        )
-                        emitResponse(hash, granteeAddress)
-                    }
+        val hashesToGrant =
+            cachedObjects?.keys ?: objectPermissionsRepository.getAllGranterHashes(granterAddress = granterAddress)
+        flow {
+            hashesToGrant.forEach { hash ->
+                val objectToGrant = cachedObjects
+                    ?.get(hash)
+                    ?.firstOrNull()
+                    ?: objectPermissionsRepository
+                        .getAccessPermissionsForGranter(objectHash = hash, granterAddress = granterAddress)
+                        .firstOrNull()
+                if (objectToGrant == null) {
+                    logger.info { "Skipping object grant for hash [$hash]. It cannot be found for granter [$granterAddress]" }
+                } else {
+                    logger.info { "ADDING object grant for hash [$hash] to [$granteeAddress] from [$granterAddress]" }
+                    objectPermissionsRepository.addAccessPermission(
+                        objectHash = hash,
+                        granterAddress = granterAddress,
+                        granteeAddress = granteeAddress,
+                        storageKeyAddress = objectToGrant.storageKeyAddress,
+                        objectSizeBytes = objectToGrant.objectSizeBytes,
+                        isObjectWithMeta = objectToGrant.isObjectWithMeta,
+                    )
+                    emit(
+                        GrantObjectPermissionsResponse.newBuilder().also { response ->
+                            response.hash = hash
+                            response.granteeAddress = granteeAddress
+                        }.build()
+                    )
                 }
-            }.forEach { it.join() }
-            completeProcess()
+            }
         }
     }
 

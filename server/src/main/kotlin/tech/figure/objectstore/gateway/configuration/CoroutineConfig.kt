@@ -7,12 +7,6 @@ import tech.figure.objectstore.gateway.util.CoroutineUtil
 
 @Configuration
 class CoroutineConfig {
-    @Bean(BeanQualifiers.BATCH_PROCESS_COROUTINE_SCOPE_QUALIFIER)
-    fun batchProcessScope(batchProperties: BatchProperties): CoroutineScope = CoroutineUtil.newSingletonScope(
-        scopeName = CoroutineScopeNames.BATCH_PROCESS_SCOPE,
-        threadCount = batchProperties.threadCount,
-    )
-
     @Bean(BeanQualifiers.EVENT_STREAM_COROUTINE_SCOPE_QUALIFIER)
     fun eventStreamScope(eventStreamProperties: EventStreamProperties): CoroutineScope = CoroutineUtil.newSingletonScope(
         scopeName = CoroutineScopeNames.EVENT_STREAM_SCOPE,
