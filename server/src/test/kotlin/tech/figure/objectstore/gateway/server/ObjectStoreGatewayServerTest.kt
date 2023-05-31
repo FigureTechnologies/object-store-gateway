@@ -386,6 +386,18 @@ class ObjectStoreGatewayServerTest {
             val permission = repository.getAccessPermission(objectHash = interceptedHash, granteeAddress = grantee.bech32Address)
             assertNotNull(actual = permission, message = "Expected the grant to exist in the database")
         }
+        val interceptedSubsequentHashes = mutableSetOf<String>()
+        runBlocking {
+            streamServer.batchGrantObjectPermissions(
+                request = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
+                    request.allHashesBuilder.granteeAddress = grantee.bech32Address
+                }.build()
+            ).collect { interceptedSubsequentHashes += it.hash }
+        }
+        assertTrue(
+            actual = interceptedSubsequentHashes.isEmpty(),
+            message = "No hashes should be granted to the grantee on a subsequent run because they have all already been granted",
+        )
     }
 
     @Test

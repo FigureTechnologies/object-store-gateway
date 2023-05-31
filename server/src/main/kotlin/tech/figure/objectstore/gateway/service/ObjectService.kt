@@ -195,7 +195,10 @@ class ObjectService(
             null
         }
         val hashesToGrant =
-            cachedObjects?.keys ?: objectPermissionsRepository.getAllGranterHashes(granterAddress = granterAddress)
+            cachedObjects?.keys ?: objectPermissionsRepository.getAllGranterHashes(
+                granterAddress = granterAddress,
+                excludedGrantees = listOf(granteeAddress),
+            )
         flow {
             hashesToGrant.forEach { hash ->
                 val objectToGrant = cachedObjects
