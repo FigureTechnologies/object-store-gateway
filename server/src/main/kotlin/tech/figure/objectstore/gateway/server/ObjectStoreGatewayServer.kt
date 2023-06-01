@@ -13,6 +13,7 @@ import tech.figure.objectstore.gateway.GatewayGrpcKt
 import tech.figure.objectstore.gateway.GatewayOuterClass
 import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantObjectPermissionsRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantObjectPermissionsRequest.GrantTargetCase
+import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantObjectPermissionsResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantScopePermissionRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantScopePermissionResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.FetchObjectByHashResponse
@@ -87,7 +88,7 @@ class ObjectStoreGatewayServer(
                 .build()
         }
 
-    override fun batchGrantObjectPermissions(request: BatchGrantObjectPermissionsRequest): Flow<GrantObjectPermissionsResponse> {
+    override fun batchGrantObjectPermissions(request: BatchGrantObjectPermissionsRequest): Flow<BatchGrantObjectPermissionsResponse> {
         val (granteeAddress, targetHashes) = when (request.grantTargetCase) {
             GrantTargetCase.ALL_HASHES -> request.allHashes.granteeAddress to null
             GrantTargetCase.SPECIFIED_HASHES -> request.specifiedHashes.let { it.granteeAddress to it.targetHashesList }

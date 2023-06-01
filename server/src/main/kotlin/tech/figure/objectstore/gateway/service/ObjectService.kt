@@ -15,7 +15,7 @@ import org.jetbrains.exposed.sql.transactions.transaction
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
 import tech.figure.objectstore.gateway.GatewayOuterClass
-import tech.figure.objectstore.gateway.GatewayOuterClass.GrantObjectPermissionsResponse
+import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantObjectPermissionsResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.ObjectWithMeta
 import tech.figure.objectstore.gateway.configuration.BatchProperties
 import tech.figure.objectstore.gateway.configuration.BeanQualifiers
@@ -179,7 +179,7 @@ class ObjectService(
         granteeAddress: String,
         granterAddress: String,
         targetHashes: Collection<String>? = null,
-    ): Flow<GrantObjectPermissionsResponse> = transaction {
+    ): Flow<BatchGrantObjectPermissionsResponse> = transaction {
         val cachedObjects = if (targetHashes != null) {
             if (targetHashes.isEmpty()) {
                 throw InvalidInputException("Target hash count must be greater than zero")
@@ -190,14 +190,17 @@ class ObjectService(
             objectPermissionsRepository.getAccessPermissionsForGranterByHashes(
                 objectHashes = targetHashes,
                 granterAddress = granterAddress,
+                excludedGrantees = listOf(granteeAddress),
             )
         } else {
             null
         }
-        val hashesToGrant =
-            cachedObjects?.keys ?: objectPermissionsRepository.getAllGranterHashes(granterAddress = granterAddress)
+        val hashesToGrant = cachedObjects?.keys ?: objectPermissionsRepository.getAllGranterHashes(
+            granterAddress = granterAddress,
+            excludedGrantees = listOf(granteeAddress),
+        )
         flow {
-            hashesToGrant.forEach { hash ->
+            hashesToGrant.forEachIndexed { index, hash ->
                 val objectToGrant = cachedObjects
                     ?.get(hash)
                     ?.firstOrNull()
@@ -217,9 +220,12 @@ class ObjectService(
                         isObjectWithMeta = objectToGrant.isObjectWithMeta,
                     )
                     emit(
-                        GrantObjectPermissionsResponse.newBuilder().also { response ->
+                        BatchGrantObjectPermissionsResponse.newBuilder().also { response ->
                             response.hash = hash
                             response.granteeAddress = granteeAddress
+                            response.granterAddress = granterAddress
+                            response.grantNumber = index + 1
+                            response.totalGrantsExpected = hashesToGrant.size
                         }.build()
                     )
                 }
