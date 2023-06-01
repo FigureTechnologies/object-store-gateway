@@ -339,38 +339,39 @@ class ObjectStoreGatewayServerTest {
         val hashes = (0 until 10).mapTo(HashSet()) { putTestObject() }
         val interceptedHashes = mutableSetOf<String>()
         val grantee = genRandomAccount()
+        val grantAllRequest = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
+            request.allHashesBuilder.granteeAddress = grantee.bech32Address
+        }.build()
         runBlocking {
-            server.batchGrantObjectPermissions(
-                request = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
-                    request.allHashesBuilder.granteeAddress = grantee.bech32Address
-                }.build(),
-            ).collect { interceptedHashes += it.hash }
+            server.batchGrantObjectPermissions(request = grantAllRequest).collect { interceptedHashes += it.hash }
         }
         assertEquals(
-            expected = interceptedHashes.size,
-            actual = hashes.size,
-            message = "Expected the amount of hashes encountered to exist in the responses. Got $interceptedHashes, expected $hashes",
-        )
-        assertTrue(
-            actual = interceptedHashes.all { it in hashes },
-            message = "Expected all stored hashes $hashes to be intercepted, but got $interceptedHashes",
+            expected = hashes.sorted(),
+            actual = interceptedHashes.sorted(),
+            message = "Expected all added hashes to be granted to the grantee",
         )
         val repository = ObjectPermissionsRepository()
         interceptedHashes.forEach { interceptedHash ->
             val permission = repository.getAccessPermission(objectHash = interceptedHash, granteeAddress = grantee.bech32Address)
             assertNotNull(actual = permission, message = "Expected the grant to exist in the database")
         }
-        val interceptedSubsequentHashes = mutableSetOf<String>()
+        val expectedEmptyHashes = mutableSetOf<String>()
         runBlocking {
-            server.batchGrantObjectPermissions(
-                request = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
-                    request.allHashesBuilder.granteeAddress = grantee.bech32Address
-                }.build()
-            ).collect { interceptedSubsequentHashes += it.hash }
+            server.batchGrantObjectPermissions(request = grantAllRequest).collect { expectedEmptyHashes += it.hash }
         }
         assertTrue(
-            actual = interceptedSubsequentHashes.isEmpty(),
+            actual = expectedEmptyHashes.isEmpty(),
             message = "No hashes should be granted to the grantee on a subsequent run because they have all already been granted",
+        )
+        val additionalHashes = (0 until 4).mapTo(HashSet()) { putTestObject() }
+        val interceptedAdditionalHashes = mutableSetOf<String>()
+        runBlocking {
+            server.batchGrantObjectPermissions(request = grantAllRequest).collect { interceptedAdditionalHashes += it.hash }
+        }
+        assertEquals(
+            expected = additionalHashes.sorted(),
+            actual = interceptedAdditionalHashes.sorted(),
+            message = "Expected all new hashes to be intercepted, ignoring all existing grants",
         )
     }
 
