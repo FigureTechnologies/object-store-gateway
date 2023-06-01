@@ -58,26 +58,17 @@ open class ObjectPermissionClass : UUIDEntityClass<ObjectPermission>(ObjectPermi
             (ObjectPermissionsTable.granteeAddress eq granteeAddress)
     }.firstOrNull()
 
-    fun findByObjectHashAndGranterAddress(
-        objectHash: String,
-        granterAddress: String,
-    ): List<ObjectPermission> = findByObjectHashesAndGranterAddress(
+    fun findByObjectHashAndGranterAddress(objectHash: String, granterAddress: String): List<ObjectPermission> = findByObjectHashesAndGranterAddress(
         objectHashes = listOf(objectHash),
         granterAddress = granterAddress,
     )[objectHash] ?: emptyList()
 
-    fun findByObjectHashesAndGranterAddress(
-        objectHashes: Collection<String>,
-        granterAddress: String,
-    ): Map<String, List<ObjectPermission>> = find {
+    fun findByObjectHashesAndGranterAddress(objectHashes: Collection<String>, granterAddress: String): Map<String, List<ObjectPermission>> = find {
         ObjectPermissionsTable.objectHash inList objectHashes and
             (ObjectPermissionsTable.granterAddress eq granterAddress)
     }.groupBy { it.objectHash }
 
-    fun findHashesByGranterAddress(
-        granterAddress: String,
-        excludedGrantees: Collection<String> = emptyList(),
-    ): Set<String> = ObjectPermissionsTable
+    fun findHashesByGranterAddress(granterAddress: String, excludedGrantees: Collection<String> = emptyList()): Set<String> = ObjectPermissionsTable
         .slice(ObjectPermissionsTable.objectHash)
         .select { ObjectPermissionsTable.granterAddress eq granterAddress }
         .map { it[ObjectPermissionsTable.objectHash] }
