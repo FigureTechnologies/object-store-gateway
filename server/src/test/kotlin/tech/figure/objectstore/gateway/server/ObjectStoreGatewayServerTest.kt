@@ -338,13 +338,37 @@ class ObjectStoreGatewayServerTest {
         setUpBaseServicesAndObjectService()
         val hashes = (0 until 10).mapTo(HashSet()) { putTestObject() }
         val interceptedHashes = mutableSetOf<String>()
+        val interceptedHashNumbers = mutableSetOf<Int>()
+        var totalGrantsExpected: Int? = null
         val grantee = genRandomAccount()
         val grantAllRequest = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
             request.allHashesBuilder.granteeAddress = grantee.bech32Address
         }.build()
         runBlocking {
-            server.batchGrantObjectPermissions(request = grantAllRequest).collect { interceptedHashes += it.hash }
+            server.batchGrantObjectPermissions(request = grantAllRequest).collect {
+                interceptedHashes += it.hash
+                interceptedHashNumbers += it.grantNumber
+                if (totalGrantsExpected != null) {
+                    assertEquals(
+                        expected = totalGrantsExpected,
+                        actual = it.totalGrantsExpected,
+                        message = "All responses should have the same number of total grants expected",
+                    )
+                } else {
+                    totalGrantsExpected = it.totalGrantsExpected
+                }
+            }
         }
+        assertEquals(
+            expected = totalGrantsExpected,
+            actual = interceptedHashNumbers.size,
+            message = "The total grants expected should be equal to the number of hash responses collected",
+        )
+        assertEquals(
+            expected = (1..10).toList(),
+            actual = interceptedHashNumbers.sorted(),
+            message = "The hash numbers acquired should be a sequential list from 1 to 10, indicating the grant numbers expected",
+        )
         assertEquals(
             expected = hashes.sorted(),
             actual = interceptedHashes.sorted(),

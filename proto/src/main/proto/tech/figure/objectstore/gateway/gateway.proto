@@ -10,7 +10,7 @@ service Gateway {
   rpc RegisterExistingObject (RegisterExistingObjectRequest) returns (RegisterExistingObjectResponse) {};
   rpc FetchObjectByHash (FetchObjectByHashRequest) returns (FetchObjectByHashResponse) {};
   rpc GrantObjectPermissions (GrantObjectPermissionsRequest) returns (GrantObjectPermissionsResponse) {};
-  rpc BatchGrantObjectPermissions (BatchGrantObjectPermissionsRequest) returns (stream GrantObjectPermissionsResponse) {};
+  rpc BatchGrantObjectPermissions (BatchGrantObjectPermissionsRequest) returns (stream BatchGrantObjectPermissionsResponse) {};
   rpc RevokeObjectPermissions (RevokeObjectPermissionsRequest) returns (RevokeObjectPermissionsResponse) {};
   rpc GrantScopePermission (GrantScopePermissionRequest) returns (GrantScopePermissionResponse) {};
   rpc BatchGrantScopePermission (BatchGrantScopePermissionRequest) returns (BatchGrantScopePermissionResponse) {};
@@ -73,6 +73,14 @@ message BatchGrantObjectPermissionsRequest {
     AllHashesObjectGrantTarget all_hashes = 1; // Specifies that all hashes submitted by the granter will receive an object grant
     SpecifiedHashesObjectGrantTarget specified_hashes = 2; // Specifies that all target hashes submitted by the granter will receive an object grant for the grantee
   }
+}
+
+message BatchGrantObjectPermissionsResponse {
+  string hash = 1; // The hash of the object to which permissions were granted
+  string granter_address = 2; // The granter that granted permissions to the grantee on an object hash
+  string grantee_address = 3; // The grantee that received permissions to the object hash
+  int32 grant_number = 4; // The grant's place in the batch order.  The first grant is numbered 1, and the final grant will have a number matching the total_grants_expected value
+  int32 total_grants_expected = 5; // The total number of grants expected to be given in this batch process
 }
 
 message RevokeObjectPermissionsRequest {
