@@ -4,12 +4,9 @@ import Constants
 import io.grpc.Context
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
-import io.grpc.stub.StreamObserver
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
-import io.mockk.verify
-import io.mockk.verifyAll
 import io.provenance.hdwallet.ec.extensions.toJavaECKeyPair
 import io.provenance.hdwallet.wallet.Account
 import io.provenance.metadata.v1.PartyType
@@ -22,7 +19,6 @@ import io.provenance.scope.sdk.toPublicKeyProto
 import io.provenance.scope.util.MetadataAddress
 import io.provenance.scope.util.sha256String
 import io.provenance.scope.util.toByteString
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.exposed.sql.deleteAll
@@ -30,11 +26,13 @@ import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.boot.test.context.SpringBootTest
 import tech.figure.objectstore.gateway.GatewayOuterClass
 import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantObjectPermissionsRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantScopePermissionRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantScopePermissionResponse
+import tech.figure.objectstore.gateway.GatewayOuterClass.FetchObjectByHashResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.GrantObjectPermissionsRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.GrantObjectPermissionsResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.GrantScopePermissionRequest
@@ -48,14 +46,12 @@ import tech.figure.objectstore.gateway.exception.AccessDeniedException
 import tech.figure.objectstore.gateway.exception.InvalidInputException
 import tech.figure.objectstore.gateway.exception.ResourceAlreadyExistsException
 import tech.figure.objectstore.gateway.helpers.bech32Address
-import tech.figure.objectstore.gateway.helpers.createErrorSlot
 import tech.figure.objectstore.gateway.helpers.genRandomAccount
 import tech.figure.objectstore.gateway.helpers.getValidFetchObjectByHashRequest
 import tech.figure.objectstore.gateway.helpers.getValidPutObjectRequest
 import tech.figure.objectstore.gateway.helpers.getValidRequest
 import tech.figure.objectstore.gateway.helpers.keyRef
 import tech.figure.objectstore.gateway.helpers.mockScopeResponse
-import tech.figure.objectstore.gateway.helpers.mockkObserver
 import tech.figure.objectstore.gateway.helpers.objectFromParts
 import tech.figure.objectstore.gateway.helpers.queryGrantCount
 import tech.figure.objectstore.gateway.model.ScopePermissionsTable
@@ -75,7 +71,6 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlin.test.fail
 
 @SpringBootTest
 class ObjectStoreGatewayServerTest {
@@ -93,7 +88,6 @@ class ObjectStoreGatewayServerTest {
     val masterAccount: Account = genRandomAccount()
 
     lateinit var server: ObjectStoreGatewayServer
-    lateinit var streamServer: ObjectStoreGatewayStreamServer
 
     val defaultGranter: String = genRandomAccount().bech32Address
     val scopeAddress = MetadataAddress.forScope(UUID.randomUUID()).toString()
@@ -136,7 +130,6 @@ class ObjectStoreGatewayServerTest {
             objectService = objectService,
             provenanceProperties = provenanceProperties,
         )
-        streamServer = ObjectStoreGatewayStreamServer(objectService = objectService)
     }
 
     fun setUpScopePermissionValues() {
@@ -154,7 +147,6 @@ class ObjectStoreGatewayServerTest {
     fun `fetchObject should succeed with a valid request`() {
         setUpBaseServices()
         val request = getValidRequest()
-        val responseObserver: StreamObserver<GatewayOuterClass.FetchObjectResponse> = mockkObserver()
 
         val dummyRecords = listOf(
             GatewayOuterClass.Record.newBuilder()
@@ -166,17 +158,13 @@ class ObjectStoreGatewayServerTest {
 
         every { scopeFetchService.fetchScopeForGrantee(request.scopeAddress, keyPair.public, request.granterAddress.takeIf { it.isNotBlank() }) } returns dummyRecords
 
-        server.fetchObject(request, responseObserver)
-
-        verifyAll {
-            responseObserver.onNext(
-                GatewayOuterClass.FetchObjectResponse.newBuilder()
-                    .setScopeId(request.scopeAddress)
-                    .addAllRecords(dummyRecords)
-                    .build()
-            )
-            responseObserver.onCompleted()
-        }
+        assertEquals(
+            expected = runBlocking { server.fetchObject(request) },
+            actual = GatewayOuterClass.FetchObjectResponse.newBuilder()
+                .setScopeId(request.scopeAddress)
+                .addAllRecords(dummyRecords)
+                .build()
+        )
     }
 
     @Test
@@ -203,22 +191,13 @@ class ObjectStoreGatewayServerTest {
     }
 
     fun testSuccessfulPutObject(request: GatewayOuterClass.PutObjectRequest) {
-        val responseObserver: StreamObserver<GatewayOuterClass.PutObjectResponse> = mockkObserver()
-
         val byteHash = request.`object`.toByteArray().sha256String()
         every { objectService.putObject(request.`object`, keyPair.public, request.additionalAudienceKeysList.map { it.toPublicKey() }) } returns byteHash
 
-        server.putObject(request, responseObserver)
-
-        verifyAll {
-            objectService.putObject(request.`object`, keyPair.public, request.additionalAudienceKeysList.map { it.toPublicKey() })
-            responseObserver.onNext(
-                GatewayOuterClass.PutObjectResponse.newBuilder()
-                    .setHash(byteHash)
-                    .build()
-            )
-            responseObserver.onCompleted()
-        }
+        assertEquals(
+            expected = runBlocking { server.putObject(request) },
+            actual = GatewayOuterClass.PutObjectResponse.newBuilder().setHash(byteHash).build(),
+        )
     }
 
     @Test
@@ -234,28 +213,20 @@ class ObjectStoreGatewayServerTest {
     }
 
     fun testSuccessfulGetObjectByHash(objectBytes: ByteArray, type: String? = null) {
-        val responseObserver = mockkObserver<GatewayOuterClass.FetchObjectByHashResponse>()
         val ownerAddress = keyPair.public.getAddress(false)
         val obj = objectFromParts(objectBytes, type)
 
         val byteHash = objectBytes.sha256String()
         every { objectService.getObject(byteHash, ownerAddress) } returns obj
 
-        server.fetchObjectByHash(getValidFetchObjectByHashRequest(byteHash), responseObserver)
-
-        verifyAll {
-            responseObserver.onNext(
-                GatewayOuterClass.FetchObjectByHashResponse.newBuilder()
-                    .setObject(obj)
-                    .build()
-            )
-            responseObserver.onCompleted()
-        }
+        assertEquals(
+            expected = runBlocking { server.fetchObjectByHash(getValidFetchObjectByHashRequest(byteHash)) },
+            actual = FetchObjectByHashResponse.newBuilder().setObject(obj).build(),
+        )
     }
 
     @Test
     fun `grantObjectPermissions should successfully grant permission to grantee`() {
-        val responseObserver = mockkObserver<GrantObjectPermissionsResponse>()
         setUpBaseServicesAndObjectService()
         val hash = putTestObject()
         val granteeAddress = genRandomAccount().bech32Address
@@ -263,28 +234,30 @@ class ObjectStoreGatewayServerTest {
             request.hash = hash
             request.granteeAddress = granteeAddress
         }.build()
-        server.grantObjectPermissions(request = request, responseObserver = responseObserver)
-        verify { responseObserver.onNext(GrantObjectPermissionsResponse.newBuilder().setHash(request.hash).setGranteeAddress(request.granteeAddress).build()) }
+        assertEquals(
+            expected = runBlocking { server.grantObjectPermissions(request = request) },
+            actual = GrantObjectPermissionsResponse.newBuilder().setHash(request.hash).setGranteeAddress(request.granteeAddress).build(),
+        )
         ObjectPermissionsRepository().getAccessPermission(objectHash = hash, granteeAddress = granteeAddress).also { permission ->
             assertNotNull(
                 actual = permission,
                 message = "The permission should be granted and a record should be ported to the db",
             )
         }
-        verify { responseObserver.onCompleted() }
     }
 
     @Test
     fun `grantObjectPermissions should reject an invalid grantee`() {
         setUpBaseServicesAndObjectService()
         assertFailsWith<AccessDeniedException>("Invalid grantee should be denied upon request") {
-            server.grantObjectPermissions(
-                request = GrantObjectPermissionsRequest.newBuilder().also { request ->
-                    request.hash = "some hash"
-                    request.granteeAddress = "invalid bech32"
-                }.build(),
-                responseObserver = mockkObserver(),
-            )
+            runBlocking {
+                server.grantObjectPermissions(
+                    request = GrantObjectPermissionsRequest.newBuilder().also { request ->
+                        request.hash = "some hash"
+                        request.granteeAddress = "invalid bech32"
+                    }.build(),
+                )
+            }
         }.also { exception ->
             assertEquals(
                 expected = "PERMISSION_DENIED: Grantee address [invalid bech32] is not valid",
@@ -298,13 +271,14 @@ class ObjectStoreGatewayServerTest {
     fun `grantObjectPermissions should reject a request that points to an unknown hash`() {
         setUpBaseServicesAndObjectService()
         assertFailsWith<AccessDeniedException>("Unknown hash should be denied upon request") {
-            server.grantObjectPermissions(
-                request = GrantObjectPermissionsRequest.newBuilder().also { request ->
-                    request.hash = "some hash"
-                    request.granteeAddress = genRandomAccount().bech32Address
-                }.build(),
-                responseObserver = mockkObserver(),
-            )
+            runBlocking {
+                server.grantObjectPermissions(
+                    request = GrantObjectPermissionsRequest.newBuilder().also { request ->
+                        request.hash = "some hash"
+                        request.granteeAddress = genRandomAccount().bech32Address
+                    }.build(),
+                )
+            }
         }.also { exception ->
             assertEquals(
                 expected = "PERMISSION_DENIED: Granter [${keyPair.public.getAddress(false)}] has no authority to grant on hash [some hash]",
@@ -319,13 +293,14 @@ class ObjectStoreGatewayServerTest {
         setUpBaseServicesAndObjectService()
         val hash = putTestObject(requester = masterAccount.keyRef.publicKey)
         assertFailsWith<AccessDeniedException>("Not owned hash should be denied upon request") {
-            server.grantObjectPermissions(
-                request = GrantObjectPermissionsRequest.newBuilder().also { request ->
-                    request.hash = hash
-                    request.granteeAddress = genRandomAccount().bech32Address
-                }.build(),
-                responseObserver = mockkObserver(),
-            )
+            runBlocking {
+                server.grantObjectPermissions(
+                    request = GrantObjectPermissionsRequest.newBuilder().also { request ->
+                        request.hash = hash
+                        request.granteeAddress = genRandomAccount().bech32Address
+                    }.build(),
+                )
+            }
         }.also { exception ->
             assertEquals(
                 expected = "PERMISSION_DENIED: Granter [${keyPair.public.getAddress(false)}] has no authority to grant on hash [$hash]",
@@ -341,13 +316,14 @@ class ObjectStoreGatewayServerTest {
         val grantee = genRandomAccount()
         val hash = putTestObject(additionalAudiences = listOf(grantee.keyRef.publicKey))
         assertFailsWith<ResourceAlreadyExistsException>("Existing grant should not be considered") {
-            server.grantObjectPermissions(
-                request = GrantObjectPermissionsRequest.newBuilder().also { request ->
-                    request.hash = hash
-                    request.granteeAddress = grantee.bech32Address
-                }.build(),
-                responseObserver = mockkObserver(),
-            )
+            runBlocking {
+                server.grantObjectPermissions(
+                    request = GrantObjectPermissionsRequest.newBuilder().also { request ->
+                        request.hash = hash
+                        request.granteeAddress = grantee.bech32Address
+                    }.build(),
+                )
+            }
         }.also { exception ->
             assertEquals(
                 expected = "ALREADY_EXISTS: Grantee [${grantee.bech32Address}] has already been granted permissions to hash [$hash]",
@@ -364,7 +340,7 @@ class ObjectStoreGatewayServerTest {
         val interceptedHashes = mutableSetOf<String>()
         val grantee = genRandomAccount()
         runBlocking {
-            streamServer.batchGrantObjectPermissions(
+            server.batchGrantObjectPermissions(
                 request = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
                     request.allHashesBuilder.granteeAddress = grantee.bech32Address
                 }.build(),
@@ -386,7 +362,7 @@ class ObjectStoreGatewayServerTest {
         }
         val interceptedSubsequentHashes = mutableSetOf<String>()
         runBlocking {
-            streamServer.batchGrantObjectPermissions(
+            server.batchGrantObjectPermissions(
                 request = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
                     request.allHashesBuilder.granteeAddress = grantee.bech32Address
                 }.build()
@@ -406,7 +382,7 @@ class ObjectStoreGatewayServerTest {
         val grantee = genRandomAccount()
         val targetGrantHashes = hashes.take(4)
         runBlocking {
-            streamServer.batchGrantObjectPermissions(
+            server.batchGrantObjectPermissions(
                 request = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
                     request.specifiedHashesBuilder.addAllTargetHashes(targetGrantHashes)
                     request.specifiedHashesBuilder.granteeAddress = grantee.bech32Address
@@ -436,10 +412,9 @@ class ObjectStoreGatewayServerTest {
     @Test
     fun `batchGrantScopePermission should fail when no hashes are specified`() {
         setUpBaseServicesAndObjectService()
-        val responseObserver = mockkObserver<GrantObjectPermissionsResponse>()
         assertFailsWith<InvalidInputException> {
             runBlocking {
-                streamServer.batchGrantObjectPermissions(
+                server.batchGrantObjectPermissions(
                     request = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
                         request.specifiedHashesBuilder.granteeAddress = genRandomAccount().bech32Address
                     }.build(),
@@ -460,7 +435,7 @@ class ObjectStoreGatewayServerTest {
         val hashes = (0..MAX_PROVIDED_BATCH_RECORDS + 1).mapTo(HashSet()) { putTestObject() }
         assertFailsWith<InvalidInputException> {
             runBlocking {
-                streamServer.batchGrantObjectPermissions(
+                server.batchGrantObjectPermissions(
                     request = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
                         request.specifiedHashesBuilder.addAllTargetHashes(hashes)
                         request.specifiedHashesBuilder.granteeAddress = genRandomAccount().bech32Address
@@ -473,24 +448,6 @@ class ObjectStoreGatewayServerTest {
                 actual = exception.message,
                 message = "Unexpected exception text when providing too many hashes",
             )
-        }
-    }
-
-    private fun waitFor(
-        tries: Int = 10,
-        delayMs: Long = 1000L,
-        timeoutMessage: String,
-        condition: () -> Boolean,
-    ) {
-        runBlocking {
-            var currentTry = 0
-            while (!condition()) {
-                currentTry ++
-                if (currentTry == tries) {
-                    fail(timeoutMessage)
-                }
-                delay(delayMs)
-            }
         }
     }
 
@@ -550,19 +507,14 @@ class ObjectStoreGatewayServerTest {
         // Use some random account as the requesting account to verify that the requester has to be someone relevant
         setUpBaseServices(contextKeyPair = genRandomAccount().keyPair.toJavaECKeyPair())
         setUpScopePermissionValues()
-        val responseObserver = mockkObserver<GrantScopePermissionResponse>()
         val request = getPermissionGrant()
-        server.grantScopePermission(request = request, responseObserver = responseObserver)
-        verify(inverse = true) { responseObserver.onError(any()) }
-        verifyAll {
-            responseObserver.onNext(
-                GrantScopePermissionResponse.newBuilder().also { response ->
-                    response.request = request
-                    response.grantAccepted = false
-                }.build()
-            )
-            responseObserver.onCompleted()
-        }
+        assertEquals(
+            expected = runBlocking { server.grantScopePermission(request = request) },
+            actual = GrantScopePermissionResponse.newBuilder().also { response ->
+                response.request = request
+                response.grantAccepted = false
+            }.build(),
+        )
         assertEquals(
             expected = 0,
             actual = transaction { ScopePermissionsTable.selectAll().count() },
@@ -575,27 +527,24 @@ class ObjectStoreGatewayServerTest {
         setUpBaseServices()
         // Setup scope fetch service to freak out, simulating a provenance communication error
         every { scopeFetchService.fetchScope(any(), any(), any()) } throws IllegalStateException("Provenance is actin' up again")
-        val responseObserver = mockkObserver<GrantScopePermissionResponse>()
-        val exceptionSlot = responseObserver.createErrorSlot<StatusRuntimeException>()
-        server.grantScopePermission(request = getPermissionGrant(), responseObserver = responseObserver)
-        verifyAll(inverse = true) {
-            responseObserver.onNext(any())
-            responseObserver.onCompleted()
+        assertThrows<StatusRuntimeException> {
+            runBlocking { server.grantScopePermission(request = getPermissionGrant()) }
+        }.also { exception ->
+            assertEquals(
+                expected = Status.UNKNOWN.code,
+                actual = exception.status.code,
+                message = "The UNKNOWN status should be emitted when an exception is encountered",
+            )
+            assertNull(
+                actual = exception.status.cause,
+                message = "The source exception should not be sent to the consumer",
+            )
+            assertEquals(
+                expected = ObjectStoreGatewayServer.DEFAULT_UNKNOWN_DESCRIPTION,
+                actual = exception.status.description,
+                message = "The expected description should be sent",
+            )
         }
-        assertEquals(
-            expected = Status.UNKNOWN.code,
-            actual = exceptionSlot.captured.status.code,
-            message = "The UNKNOWN status should be emitted when an exception is encountered",
-        )
-        assertNull(
-            actual = exceptionSlot.captured.status.cause,
-            message = "The source exception should not be sent to the consumer",
-        )
-        assertEquals(
-            expected = ObjectStoreGatewayServer.DEFAULT_UNKNOWN_DESCRIPTION,
-            actual = exceptionSlot.captured.status.description,
-            message = "The expected description should be sent",
-        )
     }
 
     @Test
@@ -636,28 +585,23 @@ class ObjectStoreGatewayServerTest {
         val granterAccount = genRandomAccount()
         setUpBaseServices(contextKeyPair = granterAccount.keyPair.toJavaECKeyPair())
         setUpScopePermissionValues()
-        val responseObserver = mockkObserver<BatchGrantScopePermissionResponse>()
         val grantees = (0..10).map { buildScopeGrantee() }
         val request = getBatchGrant(*grantees.toTypedArray())
-        server.batchGrantScopePermission(request = request, responseObserver = responseObserver)
-        verify(inverse = true) { responseObserver.onError(any()) }
-        verifyAll {
-            responseObserver.onNext(
-                BatchGrantScopePermissionResponse.newBuilder().also { response ->
-                    response.request = request
-                    response.addAllGrantResponses(
-                        grantees.map { grantee ->
-                            GrantScopePermissionResponse.newBuilder().also { grantResponse ->
-                                grantResponse.requestBuilder.scopeAddress = scopeAddress
-                                grantResponse.requestBuilder.granteeAddress = grantee.granteeAddress
-                                grantResponse.grantAccepted = false
-                            }.build()
-                        }
-                    )
-                }.build()
-            )
-            responseObserver.onCompleted()
-        }
+        assertEquals(
+            expected = runBlocking { server.batchGrantScopePermission(request = request) },
+            actual = BatchGrantScopePermissionResponse.newBuilder().also { response ->
+                response.request = request
+                response.addAllGrantResponses(
+                    grantees.map { grantee ->
+                        GrantScopePermissionResponse.newBuilder().also { grantResponse ->
+                            grantResponse.requestBuilder.scopeAddress = scopeAddress
+                            grantResponse.requestBuilder.granteeAddress = grantee.granteeAddress
+                            grantResponse.grantAccepted = false
+                        }.build()
+                    }
+                )
+            }.build(),
+        )
         assertEquals(
             expected = 0,
             actual = transaction { ScopePermissionsTable.selectAll().count() },
@@ -680,27 +624,22 @@ class ObjectStoreGatewayServerTest {
                 grantId = null,
             )
         } throws IllegalStateException("For some reason, this particular address causes exceptions in the database!")
-        val responseObserver = mockkObserver<BatchGrantScopePermissionResponse>()
         val request = getBatchGrant(goodGrantee, badGrantee)
-        server.batchGrantScopePermission(request = request, responseObserver = responseObserver)
-        verify(inverse = true) { responseObserver.onError(any()) }
-        verifyAll {
-            responseObserver.onNext(
-                BatchGrantScopePermissionResponse.newBuilder().also { response ->
-                    response.request = request
-                    response.addGrantResponses(
-                        GrantScopePermissionResponse.newBuilder().also { grantResponse ->
-                            grantResponse.requestBuilder.scopeAddress = scopeAddress
-                            grantResponse.requestBuilder.granteeAddress = goodGrantee.granteeAddress
-                            grantResponse.requestBuilder.grantId = goodGrantee.grantId
-                            grantResponse.granterAddress = defaultGranter
-                            grantResponse.grantAccepted = true
-                        }
-                    )
-                }.build()
-            )
-            responseObserver.onCompleted()
-        }
+        assertEquals(
+            expected = runBlocking { server.batchGrantScopePermission(request = request) },
+            actual = BatchGrantScopePermissionResponse.newBuilder().also { response ->
+                response.request = request
+                response.addGrantResponses(
+                    GrantScopePermissionResponse.newBuilder().also { grantResponse ->
+                        grantResponse.requestBuilder.scopeAddress = scopeAddress
+                        grantResponse.requestBuilder.granteeAddress = goodGrantee.granteeAddress
+                        grantResponse.requestBuilder.grantId = goodGrantee.grantId
+                        grantResponse.granterAddress = defaultGranter
+                        grantResponse.grantAccepted = true
+                    }
+                )
+            }.build(),
+        )
         assertEquals(
             expected = 1,
             actual = transaction { ScopePermissionsTable.selectAll().count() },
@@ -722,22 +661,19 @@ class ObjectStoreGatewayServerTest {
     fun `batchGrantScopePermission should reject requests that do not specify any grantees`() {
         setUpBaseServices()
         setUpScopePermissionValues()
-        val responseObserver = mockkObserver<BatchGrantScopePermissionResponse>()
-        val exceptionSlot = responseObserver.createErrorSlot<StatusRuntimeException>()
-        server.batchGrantScopePermission(request = getBatchGrant(), responseObserver = responseObserver)
-        verifyAll(inverse = true) {
-            responseObserver.onNext(any())
-            responseObserver.onCompleted()
+        assertThrows<StatusRuntimeException> {
+            runBlocking { server.batchGrantScopePermission(request = getBatchGrant()) }
+        }.also { exception ->
+            assertEquals(
+                expected = Status.INVALID_ARGUMENT.code,
+                actual = exception.status.code,
+                message = "The INVALID_ARGUMENT status should be emitted when no grantees are added",
+            )
+            assertTrue(
+                actual = "At least one grantee is required" in (exception.message ?: "NO MESSAGE EMITTED"),
+                message = "Expected the correct exception text to be included in message: ${exception.message}",
+            )
         }
-        assertEquals(
-            expected = Status.INVALID_ARGUMENT.code,
-            actual = exceptionSlot.captured.status.code,
-            message = "The INVALID_ARGUMENT status should be emitted when no grantees are added",
-        )
-        assertTrue(
-            actual = "At least one grantee is required" in (exceptionSlot.captured.message ?: "NO MESSAGE EMITTED"),
-            message = "Expected the correct exception text to be included in message: ${exceptionSlot.captured.message}",
-        )
     }
 
     @Test
@@ -765,19 +701,14 @@ class ObjectStoreGatewayServerTest {
         // Use some random account as the requesting account to verify that the requester has to be someone relevant
         setUpBaseServices(contextKeyPair = genRandomAccount().keyPair.toJavaECKeyPair())
         setUpScopePermissionValues()
-        val responseObserver = mockkObserver<RevokeScopePermissionResponse>()
         val request = getPermissionRevoke()
-        server.revokeScopePermission(request = request, responseObserver = responseObserver)
-        verify(inverse = true) { responseObserver.onError(any()) }
-        verifyAll {
-            responseObserver.onNext(
-                RevokeScopePermissionResponse.newBuilder().also { response ->
-                    response.request = request
-                    response.revokeAccepted = false
-                }.build()
-            )
-            responseObserver.onCompleted()
-        }
+        assertEquals(
+            expected = runBlocking { server.revokeScopePermission(request = request) },
+            actual = RevokeScopePermissionResponse.newBuilder().also { response ->
+                response.request = request
+                response.revokeAccepted = false
+            }.build(),
+        )
     }
 
     @Test
@@ -785,27 +716,24 @@ class ObjectStoreGatewayServerTest {
         setUpBaseServices()
         // Setup scope fetch service to freak out, simulating a provenance communication error
         every { scopeFetchService.fetchScope(any(), any(), any()) } throws IllegalArgumentException("That ol' blockchain is givin' us trouble")
-        val responseObserver = mockkObserver<RevokeScopePermissionResponse>()
-        val exceptionSlot = responseObserver.createErrorSlot<StatusRuntimeException>()
-        server.revokeScopePermission(request = getPermissionRevoke(), responseObserver = responseObserver)
-        verifyAll(inverse = true) {
-            responseObserver.onNext(any())
-            responseObserver.onCompleted()
+        assertFailsWith<StatusRuntimeException> {
+            runBlocking { server.revokeScopePermission(request = getPermissionRevoke()) }
+        }.also { exception ->
+            assertEquals(
+                expected = Status.UNKNOWN.code,
+                actual = exception.status.code,
+                message = "The UNKNOWN status should be emitted when an exception is encountered",
+            )
+            assertNull(
+                actual = exception.status.cause,
+                message = "The source exception should not be sent to the consumer",
+            )
+            assertEquals(
+                expected = ObjectStoreGatewayServer.DEFAULT_UNKNOWN_DESCRIPTION,
+                actual = exception.status.description,
+                message = "The expected description should be sent",
+            )
         }
-        assertEquals(
-            expected = Status.UNKNOWN.code,
-            actual = exceptionSlot.captured.status.code,
-            message = "The UNKNOWN status should be emitted when an exception is encountered",
-        )
-        assertNull(
-            actual = exceptionSlot.captured.status.cause,
-            message = "The source exception should not be sent to the consumer",
-        )
-        assertEquals(
-            expected = ObjectStoreGatewayServer.DEFAULT_UNKNOWN_DESCRIPTION,
-            actual = exceptionSlot.captured.status.description,
-            message = "The expected description should be sent",
-        )
     }
 
     private fun testGrantScopePermission(
@@ -814,20 +742,15 @@ class ObjectStoreGatewayServerTest {
     ) {
         setUpBaseServices(contextKeyPair = contextKeyPair)
         setUpScopePermissionValues()
-        val responseObserver = mockkObserver<GrantScopePermissionResponse>()
         val request = getPermissionGrant(grantId = grantId)
-        server.grantScopePermission(request = request, responseObserver = responseObserver)
-        verify(inverse = true) { responseObserver.onError(any()) }
-        verifyAll {
-            responseObserver.onNext(
-                GrantScopePermissionResponse.newBuilder().also { response ->
-                    response.request = request
-                    response.granterAddress = defaultGranter
-                    response.grantAccepted = true
-                }.build()
-            )
-            responseObserver.onCompleted()
-        }
+        assertEquals(
+            expected = runBlocking { server.grantScopePermission(request = request) },
+            actual = GrantScopePermissionResponse.newBuilder().also { response ->
+                response.request = request
+                response.granterAddress = defaultGranter
+                response.grantAccepted = true
+            }.build(),
+        )
         assertEquals(
             expected = 1,
             actual = getGrantCount(grantId = grantId),
@@ -841,29 +764,24 @@ class ObjectStoreGatewayServerTest {
     ) {
         setUpBaseServices(contextKeyPair = contextKeyPair)
         setUpScopePermissionValues()
-        val responseObserver = mockkObserver<BatchGrantScopePermissionResponse>()
         val request = getBatchGrant(*grantees)
-        server.batchGrantScopePermission(request = request, responseObserver = responseObserver)
-        verify(inverse = true) { responseObserver.onError(any()) }
-        verifyAll {
-            responseObserver.onNext(
-                BatchGrantScopePermissionResponse.newBuilder().also { batchResponse ->
-                    batchResponse.request = request
-                    batchResponse.addAllGrantResponses(
-                        grantees.map { grantee ->
-                            GrantScopePermissionResponse.newBuilder().also { grantResponse ->
-                                grantResponse.requestBuilder.scopeAddress = scopeAddress
-                                grantResponse.requestBuilder.granteeAddress = grantee.granteeAddress
-                                grantResponse.requestBuilder.grantId = grantee.grantId
-                                grantResponse.granterAddress = defaultGranter
-                                grantResponse.grantAccepted = true
-                            }.build()
-                        }
-                    )
-                }.build()
-            )
-            responseObserver.onCompleted()
-        }
+        assertEquals(
+            expected = runBlocking { server.batchGrantScopePermission(request = request) },
+            actual = BatchGrantScopePermissionResponse.newBuilder().also { batchResponse ->
+                batchResponse.request = request
+                batchResponse.addAllGrantResponses(
+                    grantees.map { grantee ->
+                        GrantScopePermissionResponse.newBuilder().also { grantResponse ->
+                            grantResponse.requestBuilder.scopeAddress = scopeAddress
+                            grantResponse.requestBuilder.granteeAddress = grantee.granteeAddress
+                            grantResponse.requestBuilder.grantId = grantee.grantId
+                            grantResponse.granterAddress = defaultGranter
+                            grantResponse.grantAccepted = true
+                        }.build()
+                    }
+                )
+            }.build(),
+        )
         grantees.forEach { grantee ->
             assertEquals(
                 expected = 1,
@@ -879,26 +797,21 @@ class ObjectStoreGatewayServerTest {
     ) {
         setUpBaseServices(contextKeyPair = contextKeyPair)
         setUpScopePermissionValues()
-        server.grantScopePermission(request = getPermissionGrant(grantId = grantId), responseObserver = mockkObserver())
+        runBlocking { server.grantScopePermission(request = getPermissionGrant(grantId = grantId)) }
         assertEquals(
             expected = 1,
             actual = getGrantCount(grantId = grantId),
             message = "A record with the provided specifications should be created by the request",
         )
-        val responseObserver = mockkObserver<RevokeScopePermissionResponse>()
         val request = getPermissionRevoke(grantId = grantId)
-        server.revokeScopePermission(request = request, responseObserver = responseObserver)
-        verify(inverse = true) { responseObserver.onError(any()) }
-        verifyAll {
-            responseObserver.onNext(
-                RevokeScopePermissionResponse.newBuilder().also { response ->
-                    response.request = request
-                    response.revokedGrantsCount = 1
-                    response.revokeAccepted = true
-                }.build()
-            )
-            responseObserver.onCompleted()
-        }
+        assertEquals(
+            expected = runBlocking { server.revokeScopePermission(request = request) },
+            actual = RevokeScopePermissionResponse.newBuilder().also { response ->
+                response.request = request
+                response.revokedGrantsCount = 1
+                response.revokeAccepted = true
+            }.build(),
+        )
         assertEquals(
             expected = 0,
             actual = getGrantCount(grantId = grantId),

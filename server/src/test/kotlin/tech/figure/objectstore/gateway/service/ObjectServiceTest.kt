@@ -19,7 +19,6 @@ import io.provenance.scope.objectstore.util.base64Decode
 import io.provenance.scope.util.sha256
 import io.provenance.scope.util.sha256String
 import io.provenance.scope.util.toByteString
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -42,7 +41,6 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class ObjectServiceTest {
     lateinit var accountsRepository: DataStorageAccountsRepository
     lateinit var addressVerificationService: AddressVerificationService
