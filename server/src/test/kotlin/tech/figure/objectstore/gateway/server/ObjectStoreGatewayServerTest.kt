@@ -22,7 +22,6 @@ import io.provenance.scope.sdk.toPublicKeyProto
 import io.provenance.scope.util.MetadataAddress
 import io.provenance.scope.util.sha256String
 import io.provenance.scope.util.toByteString
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.runBlocking
@@ -79,7 +78,6 @@ import kotlin.test.assertTrue
 import kotlin.test.fail
 
 @SpringBootTest
-@OptIn(ExperimentalCoroutinesApi::class)
 class ObjectStoreGatewayServerTest {
     private companion object {
         const val MAX_PROVIDED_BATCH_RECORDS: Int = 10
