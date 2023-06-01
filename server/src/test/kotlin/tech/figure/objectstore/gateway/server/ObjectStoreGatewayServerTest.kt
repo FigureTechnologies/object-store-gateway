@@ -404,34 +404,74 @@ class ObjectStoreGatewayServerTest {
         setUpBaseServicesAndObjectService()
         val hashes = (0 until 10).mapTo(HashSet()) { putTestObject() }
         val interceptedHashes = mutableSetOf<String>()
+        val interceptedGrantNumbers = mutableSetOf<Int>()
         val grantee = genRandomAccount()
-        val targetGrantHashes = hashes.take(4)
+        val targetGrantHashes = hashes.take(4).toSet()
+        var totalGrantsExpected: Int? = null
         runBlocking {
             server.batchGrantObjectPermissions(
                 request = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
                     request.specifiedHashesBuilder.addAllTargetHashes(targetGrantHashes)
                     request.specifiedHashesBuilder.granteeAddress = grantee.bech32Address
                 }.build(),
-            ).collect { interceptedHashes += it.hash }
-        }
-        assertEquals(
-            expected = interceptedHashes.size,
-            actual = targetGrantHashes.size,
-            message = "Expected the amount of hashes encountered to exist in the responses. Got $interceptedHashes, expected $targetGrantHashes",
-        )
-        assertTrue(
-            actual = interceptedHashes.all { it in targetGrantHashes },
-            message = "Expected all target hashes $targetGrantHashes to be intercepted, but got $interceptedHashes",
-        )
-        val repository = ObjectPermissionsRepository()
-        hashes.forEach { interceptedHash ->
-            val permission = repository.getAccessPermission(objectHash = interceptedHash, granteeAddress = grantee.bech32Address)
-            if (interceptedHash in targetGrantHashes) {
-                assertNotNull(actual = permission, message = "Expected a target grant hash to be granted to the grantee")
-            } else {
-                assertNull(actual = permission, message = "Expected an untargeted grant hash to be omitted from grants")
+            ).collect {
+                interceptedHashes += it.hash
+                interceptedGrantNumbers += it.grantNumber
+                if (totalGrantsExpected != null) {
+                    assertEquals(
+                        expected = totalGrantsExpected,
+                        actual = it.totalGrantsExpected,
+                        message = "Expected the total grants value to be identical in each response",
+                    )
+                } else {
+                    totalGrantsExpected = it.totalGrantsExpected
+                }
             }
         }
+        assertEquals(
+            expected = targetGrantHashes.size,
+            actual = totalGrantsExpected,
+            message = "The total grants expected value should be equivalent to the number of hashes requested",
+        )
+        assertEquals(
+            expected = (1..4).toList(),
+            actual = interceptedGrantNumbers.sorted(),
+            message = "Expected the grant numbers emitted to be sequentially equivalent to the number of grants made",
+        )
+        assertEquals(
+            expected = interceptedHashes.sorted(),
+            actual = targetGrantHashes.sorted(),
+            message = "Expected only the target hashes to be granted",
+        )
+        val repository = ObjectPermissionsRepository()
+        val checkForHashGrants = { expectedHashesToBeGranted: Collection<String> ->
+            hashes.forEach { existingHash ->
+                val permission = repository.getAccessPermission(objectHash = existingHash, granteeAddress = grantee.bech32Address)
+                if (existingHash in expectedHashesToBeGranted) {
+                    assertNotNull(actual = permission, message = "Expected a target grant hash to be granted to the grantee")
+                } else {
+                    assertNull(actual = permission, message = "Expected an untargeted grant hash to be omitted from grants")
+                }
+            }
+        }
+        // Only the target grant hashes should be granted at this point
+        checkForHashGrants(targetGrantHashes)
+        val interceptedRemainingHashes = mutableSetOf<String>()
+        runBlocking {
+            server.batchGrantObjectPermissions(
+                request = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
+                    request.specifiedHashesBuilder.addAllTargetHashes(hashes)
+                    request.specifiedHashesBuilder.granteeAddress = grantee.bech32Address
+                }.build()
+            ).collect { interceptedRemainingHashes += it.hash }
+        }
+        assertEquals(
+            expected = hashes.minus(targetGrantHashes).sorted(),
+            actual = interceptedRemainingHashes.sorted(),
+            message = "Only the hashes that have not been granted to the grantee should be in the result set, despite all hashes being requested",
+        )
+        // All hashes should be granted at this point
+        checkForHashGrants(hashes)
     }
 
     @Test

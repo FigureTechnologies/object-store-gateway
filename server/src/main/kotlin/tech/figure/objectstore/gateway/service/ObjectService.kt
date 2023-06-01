@@ -190,15 +190,15 @@ class ObjectService(
             objectPermissionsRepository.getAccessPermissionsForGranterByHashes(
                 objectHashes = targetHashes,
                 granterAddress = granterAddress,
+                excludedGrantees = listOf(granteeAddress),
             )
         } else {
             null
         }
-        val hashesToGrant =
-            cachedObjects?.keys ?: objectPermissionsRepository.getAllGranterHashes(
-                granterAddress = granterAddress,
-                excludedGrantees = listOf(granteeAddress),
-            )
+        val hashesToGrant = cachedObjects?.keys ?: objectPermissionsRepository.getAllGranterHashes(
+            granterAddress = granterAddress,
+            excludedGrantees = listOf(granteeAddress),
+        )
         flow {
             hashesToGrant.forEachIndexed { index, hash ->
                 val objectToGrant = cachedObjects

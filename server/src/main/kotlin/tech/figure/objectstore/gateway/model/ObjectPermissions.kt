@@ -1,16 +1,15 @@
 package tech.figure.objectstore.gateway.model
+
 import org.jetbrains.exposed.dao.UUIDEntity
 import org.jetbrains.exposed.dao.UUIDEntityClass
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.UUIDTable
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
+import org.jetbrains.exposed.sql.AbstractQuery
+import org.jetbrains.exposed.sql.alias
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.andWhere
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.select
-import tech.figure.objectstore.gateway.model.ObjectPermissionsTable.isObjectWithMeta
-import tech.figure.objectstore.gateway.model.ObjectPermissionsTable.storageKeyAddress
 import tech.figure.objectstore.gateway.sql.offsetDatetime
 import java.time.OffsetDateTime
 import java.util.UUID
@@ -58,40 +57,57 @@ open class ObjectPermissionClass : UUIDEntityClass<ObjectPermission>(ObjectPermi
             (ObjectPermissionsTable.granteeAddress eq granteeAddress)
     }.firstOrNull()
 
-    fun findByObjectHashAndGranterAddress(objectHash: String, granterAddress: String): List<ObjectPermission> = findByObjectHashesAndGranterAddress(
+    fun findByObjectHashAndGranterAddress(
+        objectHash: String,
+        granterAddress: String,
+        excludedGrantees: Collection<String> = emptyList(),
+    ): List<ObjectPermission> = findByObjectHashesAndGranterAddress(
         objectHashes = listOf(objectHash),
         granterAddress = granterAddress,
+        excludedGrantees = excludedGrantees,
     )[objectHash] ?: emptyList()
 
-    fun findByObjectHashesAndGranterAddress(objectHashes: Collection<String>, granterAddress: String): Map<String, List<ObjectPermission>> = find {
-        ObjectPermissionsTable.objectHash inList objectHashes and
-            (ObjectPermissionsTable.granterAddress eq granterAddress)
-    }.groupBy { it.objectHash }
+    fun findByObjectHashesAndGranterAddress(
+        objectHashes: Collection<String>,
+        granterAddress: String,
+        excludedGrantees: Collection<String> = emptyList(),
+    ): Map<String, List<ObjectPermission>> = find {
+        (ObjectPermissionsTable.objectHash inList objectHashes)
+            .and { ObjectPermissionsTable.granterAddress eq granterAddress }
+            .let { query ->
+                getGranteeExclusionSubqueryOrNull(excludedGrantees = excludedGrantees)
+                    ?.let { query.and { ObjectPermissionsTable.objectHash notInSubQuery it } }
+                    ?: query
+            }
+    }
+        .groupBy { it.objectHash }
 
-    fun findHashesByGranterAddress(granterAddress: String, excludedGrantees: Collection<String> = emptyList()): Set<String> = ObjectPermissionsTable
+    fun findHashesByGranterAddress(
+        granterAddress: String,
+        excludedGrantees: Collection<String> = emptyList(),
+    ): Set<String> = ObjectPermissionsTable
         .slice(ObjectPermissionsTable.objectHash)
         .select { ObjectPermissionsTable.granterAddress eq granterAddress }
+        .let { query ->
+            getGranteeExclusionSubqueryOrNull(excludedGrantees = excludedGrantees)
+                ?.let { query.andWhere { ObjectPermissionsTable.objectHash notInSubQuery it } }
+                ?: query
+        }
         .map { it[ObjectPermissionsTable.objectHash] }
         .toSet()
-        .let { allGranterHashes ->
-            if (excludedGrantees.isEmpty()) {
-                allGranterHashes
-            } else {
-                ObjectPermissionsTable
-                    .slice(ObjectPermissionsTable.objectHash)
-                    .select { ObjectPermissionsTable.granteeAddress inList excludedGrantees }
-                    .andWhere { ObjectPermissionsTable.objectHash inList allGranterHashes }
-                    .map { it[ObjectPermissionsTable.objectHash] }
-                    .toSet()
-                    .let { hashesToExclude -> allGranterHashes - hashesToExclude }
-            }
-        }
 
     fun deleteByObjectHashGranterAndGranteeAddresses(objectHash: String, granterAddress: String, granteeAddresses: List<String>) = ObjectPermissionsTable.deleteWhere {
         ObjectPermissionsTable.objectHash eq objectHash and
             (ObjectPermissionsTable.granterAddress eq granterAddress) and
             (ObjectPermissionsTable.granteeAddress inList granteeAddresses)
     }
+
+    private fun getGranteeExclusionSubqueryOrNull(excludedGrantees: Collection<String>): AbstractQuery<*>? = ObjectPermissionsTable
+        .takeIf { excludedGrantees.isNotEmpty() }
+        ?.slice(ObjectPermissionsTable.objectHash)
+        ?.select { ObjectPermissionsTable.granteeAddress inList excludedGrantees }
+        ?.alias("grantee_exclusion_hashes")
+        ?.query
 }
 
 class ObjectPermission(uuid: EntityID<UUID>) : UUIDEntity(uuid) {

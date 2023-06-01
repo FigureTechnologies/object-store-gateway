@@ -12,6 +12,7 @@ import tech.figure.objectstore.gateway.GatewayGrpc
 import tech.figure.objectstore.gateway.GatewayGrpcKt
 import tech.figure.objectstore.gateway.GatewayOuterClass
 import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantObjectPermissionsRequest
+import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantObjectPermissionsResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantScopePermissionRequest
 import tech.figure.objectstore.gateway.GatewayOuterClass.BatchGrantScopePermissionResponse
 import tech.figure.objectstore.gateway.GatewayOuterClass.GrantObjectPermissionsRequest
@@ -206,7 +207,7 @@ class GatewayClient(val config: ClientConfig) : Closeable {
         providedObjectHashes: Collection<String>? = null,
         jwt: GatewayJwt,
         jwtExpireAfter: Duration = GatewayJwt.DEFAULT_TIMEOUT,
-    ): Flow<GrantObjectPermissionsResponse> = gatewayCoroutineStub.interceptJwt(jwt, jwtExpireAfter)
+    ): Flow<BatchGrantObjectPermissionsResponse> = gatewayCoroutineStub.interceptJwt(jwt, jwtExpireAfter)
         .batchGrantObjectPermissions(
             request = BatchGrantObjectPermissionsRequest.newBuilder().also { request ->
                 if (providedObjectHashes != null) {
