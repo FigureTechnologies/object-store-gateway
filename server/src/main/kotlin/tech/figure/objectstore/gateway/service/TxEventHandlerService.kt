@@ -7,13 +7,13 @@ import io.provenance.scope.encryption.ecies.ECUtils
 import io.provenance.scope.encryption.util.getAddress
 import mu.KLogging
 import org.springframework.stereotype.Service
-import tech.figure.eventstream.stream.models.TxEvent
+import tech.figure.block.api.proto.BlockOuterClass.TxEvent
 import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
 import tech.figure.objectstore.gateway.eventstream.GatewayEvent
 import tech.figure.objectstore.gateway.eventstream.GatewayExpectedEventType
 
 @Service
-class StreamEventHandlerService(
+class TxEventHandlerService(
     private val scopePermissionsService: ScopePermissionsService,
     private val pbClient: PbClient,
     private val provenanceProperties: ProvenanceProperties,

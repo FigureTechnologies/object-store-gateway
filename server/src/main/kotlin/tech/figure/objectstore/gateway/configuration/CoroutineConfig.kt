@@ -7,14 +7,13 @@ import tech.figure.objectstore.gateway.util.CoroutineUtil
 
 @Configuration
 class CoroutineConfig {
-    @Bean(BeanQualifiers.EVENT_STREAM_COROUTINE_SCOPE_QUALIFIER)
-    fun eventStreamScope(eventStreamProperties: EventStreamProperties): CoroutineScope = CoroutineUtil.newSingletonScope(
-        scopeName = CoroutineScopeNames.EVENT_STREAM_SCOPE,
-        threadCount = eventStreamProperties.threadCount
+    @Bean(BeanQualifiers.BLOCK_STREAM_COROUTINE_SCOPE_QUALIFIER)
+    fun blockStreamScope(blockapiProperties: BlockapiProperties): CoroutineScope = CoroutineUtil.newSingletonScope(
+        scopeName = CoroutineScopeNames.BLOCK_STREAM_SCOPE,
+        threadCount = blockapiProperties.threadCount
     )
 }
 
 object CoroutineScopeNames {
-    const val BATCH_PROCESS_SCOPE = "batchProcessCoroutineScope"
-    const val EVENT_STREAM_SCOPE = "eventStreamCoroutineScope"
+    const val BLOCK_STREAM_SCOPE = "blockStreamCoroutineScope"
 }

@@ -18,8 +18,9 @@ import org.jetbrains.exposed.sql.transactions.transaction
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.SpringBootTest
-import tech.figure.eventstream.stream.models.Event
-import tech.figure.eventstream.stream.models.TxEvent
+import tech.figure.block.api.proto.BlockOuterClass.Attribute
+import tech.figure.block.api.proto.attribute
+import tech.figure.block.api.proto.txEvent
 import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
 import tech.figure.objectstore.gateway.eventstream.GatewayExpectedAttribute
 import tech.figure.objectstore.gateway.eventstream.GatewayExpectedEventType
@@ -30,16 +31,13 @@ import tech.figure.objectstore.gateway.model.ScopePermission
 import tech.figure.objectstore.gateway.model.ScopePermissionsTable
 import tech.figure.objectstore.gateway.repository.ScopePermissionsRepository
 import tech.figure.objectstore.gateway.util.toByteString
-import java.math.BigInteger
-import java.time.OffsetDateTime
-import java.util.Base64
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.fail
 
 @SpringBootTest
-class StreamEventHandlerServiceTest {
+class TxEventHandlerServiceTest {
     val onboardingOwner: Account = genRandomAccount() // Access the standard testnet account address
     val priorityOwnerAddress = genRandomAccount().bech32Address // This is the first value located in ScopePermissionsService.findRegisteredScopeOwnerAddress(), and will be the granter in most circumstances
     val sessionPartyAddress = genRandomAccount().bech32Address
@@ -53,7 +51,7 @@ class StreamEventHandlerServiceTest {
     lateinit var scopeFetchService: ScopeFetchService
     lateinit var scopePermissionsService: ScopePermissionsService
     lateinit var scopePermissionsRepository: ScopePermissionsRepository
-    lateinit var service: StreamEventHandlerService
+    lateinit var service: TxEventHandlerService
 
     @BeforeEach
     fun clearDb() {
@@ -99,7 +97,7 @@ class StreamEventHandlerServiceTest {
             scopeFetchService = scopeFetchService,
             scopePermissionsRepository = scopePermissionsRepository,
         )
-        service = StreamEventHandlerService(
+        service = TxEventHandlerService(
             scopePermissionsService = scopePermissionsService,
             pbClient = pbClient,
             provenanceProperties = provenanceProperties,
@@ -284,25 +282,17 @@ class StreamEventHandlerServiceTest {
 
     private fun submitEvent(
         blockHeight: Long = 10L,
-        blockDateTime: OffsetDateTime = OffsetDateTime.now(),
         txHash: String = "txHash",
         eventType: String = "wasm",
         attributes: List<Pair<String, String>>,
-        fee: BigInteger = 1000L.toBigInteger(),
-        denom: String = "nhash",
-        note: String = "test event",
     ) {
         service.handleEvent(
-            event = TxEvent(
-                blockHeight = blockHeight,
-                blockDateTime = blockDateTime,
-                txHash = txHash,
-                eventType = eventType,
-                attributes = attributes.map { it.toEvent() },
-                fee = fee,
-                denom = denom,
-                note = note,
-            )
+            event = txEvent {
+                this.height = blockHeight
+                this.txHash = txHash
+                this.eventType = eventType
+                this.attributes.addAll(attributes.map { it.toEvent() })
+            }
         )
     }
 
@@ -339,6 +329,8 @@ class StreamEventHandlerServiceTest {
         }.singleOrNull()
     }
 
-    private fun String.base64Encode(): String = Base64.getEncoder().encodeToString(toByteArray())
-    private fun Pair<String, String>.toEvent(): Event = Event(first.base64Encode(), second.base64Encode())
+    private fun Pair<String, String>.toEvent(): Attribute = attribute {
+        this.key = first
+        this.value = second
+    }
 }

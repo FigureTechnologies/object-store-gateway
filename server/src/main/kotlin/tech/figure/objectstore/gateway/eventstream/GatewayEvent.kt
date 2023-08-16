@@ -1,7 +1,7 @@
 package tech.figure.objectstore.gateway.eventstream
 
 import mu.KotlinLogging
-import tech.figure.eventstream.stream.models.TxEvent
+import tech.figure.block.api.proto.BlockOuterClass.TxEvent
 
 /**
  * Wrapper for a wasm event that contains the expected object store gateway attributes to trigger an access grant.

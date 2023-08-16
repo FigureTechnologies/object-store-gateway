@@ -15,10 +15,10 @@ data class BatchProperties(
 )
 
 @ConstructorBinding
-@ConfigurationProperties(prefix = "event.stream")
+@ConfigurationProperties(prefix = "blockapi")
 @Validated
-data class EventStreamProperties(
-    val websocketUri: URI,
+data class BlockapiProperties(
+    val uri: URI,
     val epochHeight: Long,
     val enabled: Boolean,
     val blockHeightTrackingUuid: UUID,

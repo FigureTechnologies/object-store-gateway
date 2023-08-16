@@ -1,7 +1,8 @@
 package tech.figure.objectstore.gateway.eventstream
 
 import mu.KotlinLogging
-import tech.figure.eventstream.stream.models.TxEvent
+import tech.figure.block.api.proto.BlockOuterClass.Attribute
+import tech.figure.block.api.proto.BlockOuterClass.TxEvent
 
 /**
  * A base adapter class for a given TxEvent, consumed via the event stream libraries.  This allows an event to be
@@ -15,7 +16,7 @@ abstract class GatewayEventAdapter(val sourceEvent: TxEvent) {
     /**
      * Lazily-parsed tx events, accessible for event value fetching.
      */
-    private val attributeMap: Map<String, TxAttribute> by lazy { TxAttribute.parseTxEventMap(sourceEvent) }
+    private val attributeMap: Map<String, Attribute> by lazy { sourceEvent.attributesList.associateBy { it.key } }
 
     /**
      * On-demand access to the source event's txHash value for simpler syntax throughout the application.
