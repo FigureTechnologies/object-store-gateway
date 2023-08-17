@@ -8,9 +8,9 @@ import tech.figure.objectstore.gateway.util.CoroutineUtil
 @Configuration
 class CoroutineConfig {
     @Bean(BeanQualifiers.BLOCK_STREAM_COROUTINE_SCOPE_QUALIFIER)
-    fun blockStreamScope(blockapiProperties: BlockapiProperties): CoroutineScope = CoroutineUtil.newSingletonScope(
+    fun blockStreamScope(blockStreamProperties: BlockStreamProperties): CoroutineScope = CoroutineUtil.newSingletonScope(
         scopeName = CoroutineScopeNames.BLOCK_STREAM_SCOPE,
-        threadCount = blockapiProperties.threadCount
+        threadCount = blockStreamProperties.threadCount
     )
 }
 

@@ -37,6 +37,7 @@ dependencies {
         libs.okhttp3,
         libs.provenance.blockapi.client,
         libs.bundles.database,
+        libs.bundles.eventstream,
         libs.bundles.grpc,
         libs.bundles.jackson,
         libs.bundles.kotlin,

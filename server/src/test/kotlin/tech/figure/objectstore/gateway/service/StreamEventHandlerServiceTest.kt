@@ -22,6 +22,7 @@ import tech.figure.block.api.proto.BlockOuterClass.Attribute
 import tech.figure.block.api.proto.attribute
 import tech.figure.block.api.proto.txEvent
 import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
+import tech.figure.objectstore.gateway.eventstream.BlockApiGatewayEvent
 import tech.figure.objectstore.gateway.eventstream.GatewayExpectedAttribute
 import tech.figure.objectstore.gateway.eventstream.GatewayExpectedEventType
 import tech.figure.objectstore.gateway.helpers.bech32Address
@@ -37,7 +38,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.fail
 
 @SpringBootTest
-class TxEventHandlerServiceTest {
+class StreamEventHandlerServiceTest {
     val onboardingOwner: Account = genRandomAccount() // Access the standard testnet account address
     val priorityOwnerAddress = genRandomAccount().bech32Address // This is the first value located in ScopePermissionsService.findRegisteredScopeOwnerAddress(), and will be the granter in most circumstances
     val sessionPartyAddress = genRandomAccount().bech32Address
@@ -51,7 +52,7 @@ class TxEventHandlerServiceTest {
     lateinit var scopeFetchService: ScopeFetchService
     lateinit var scopePermissionsService: ScopePermissionsService
     lateinit var scopePermissionsRepository: ScopePermissionsRepository
-    lateinit var service: TxEventHandlerService
+    lateinit var service: StreamEventHandlerService
 
     @BeforeEach
     fun clearDb() {
@@ -97,7 +98,7 @@ class TxEventHandlerServiceTest {
             scopeFetchService = scopeFetchService,
             scopePermissionsRepository = scopePermissionsRepository,
         )
-        service = TxEventHandlerService(
+        service = StreamEventHandlerService(
             scopePermissionsService = scopePermissionsService,
             pbClient = pbClient,
             provenanceProperties = provenanceProperties,
@@ -292,7 +293,7 @@ class TxEventHandlerServiceTest {
                 this.txHash = txHash
                 this.eventType = eventType
                 this.attributes.addAll(attributes.map { it.toEvent() })
-            }
+            }.let(::BlockApiGatewayEvent)
         )
     }
 
