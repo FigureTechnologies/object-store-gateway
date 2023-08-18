@@ -22,14 +22,6 @@ abstract class GatewayEventAdapter(
     val eventType: String,
 ) {
     /**
-     * See GatewayExpectedAttribute.EVENT_TYPE and GatewayExpectedEventType for details.
-     */
-    val gatewayEventType: GatewayExpectedEventType = getEventValue(
-        key = GatewayExpectedAttribute.EVENT_TYPE.key,
-        transform = { eventTypeString -> GatewayExpectedEventType.fromWasmName(eventTypeString) },
-    )
-
-    /**
      * Fetches the specific key from the event, if present, as a String.  If not, null is returned.
      *
      * @param key The attribute's unique name, corresponding to an expected output value.

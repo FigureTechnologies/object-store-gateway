@@ -15,6 +15,14 @@ open class GatewayEvent(
     txHash = txHash,
 ) {
     /**
+     * See GatewayExpectedAttribute.EVENT_TYPE and GatewayExpectedEventType for details.
+     */
+    val gatewayEventType: GatewayExpectedEventType = getEventValue(
+        key = GatewayExpectedAttribute.EVENT_TYPE.key,
+        transform = { eventTypeString -> GatewayExpectedEventType.fromWasmName(eventTypeString) },
+    )
+
+    /**
      * See GatewayExpectedAttribute.SCOPE_ADDRESS for details.
      */
     val scopeAddress: String = getEventStringValue(GatewayExpectedAttribute.SCOPE_ADDRESS.key)

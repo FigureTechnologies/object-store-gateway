@@ -148,7 +148,8 @@ This service watches the event stream emitted by the Provenance Blockchain using
 or the [Figure Tech Blockapi Library](https://github.com/FigureTechnologies/pb-block-client).
 The choice of stream can be configured using the blockstream.type property (or env var BLOCKSTREAM_TYPE),
 where the value "provenance" allows connecting to a Provenance node with the [Figure Tech Event Stream Library](https://github.com/FigureTechnologies/event-stream),
-and a value of "blockapi" allows connecting to the more efficient [Figure Tech Blockapi Library](https://github.com/FigureTechnologies/pb-block-client).
+and a value of "blockapi" allows connecting to the more efficient [Figure Tech Blockapi Library](https://github.com/FigureTechnologies/pb-block-client). Blockapi usage requires
+an api key for consumption.
 When the [proper event formats](server/src/main/kotlin/tech/figure/objectstore/gateway/eventstream/GatewayEvent.kt) are
 detected, the service will automatically attempt to verify the authenticity of the event's sources.  If all values are
 properly established, any access grants for a target Provenance Blockchain Scope and Provenance Blockchain Account will
