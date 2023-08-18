@@ -35,7 +35,7 @@ class BlockStreamConsumer(
 
     override fun onApplicationEvent(event: ApplicationReadyEvent) {
         if (!blockStreamProperties.enabled) {
-            logger.warn("Event stream has been manually disabled! Use a value of `true` for EVENT_STREAM_ENABLED to re-enable it")
+            logger.warn("Block stream has been manually disabled! Use a value of `true` for BLOCKSTREAM_ENABLED to re-enable it")
             return
         }
         tryStartBlockStream {
