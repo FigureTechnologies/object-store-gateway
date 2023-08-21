@@ -7,7 +7,6 @@ import io.provenance.scope.encryption.ecies.ECUtils
 import io.provenance.scope.encryption.util.getAddress
 import mu.KLogging
 import org.springframework.stereotype.Service
-import tech.figure.eventstream.stream.models.TxEvent
 import tech.figure.objectstore.gateway.configuration.ProvenanceProperties
 import tech.figure.objectstore.gateway.eventstream.GatewayEvent
 import tech.figure.objectstore.gateway.eventstream.GatewayExpectedEventType
@@ -27,39 +26,35 @@ class StreamEventHandlerService(
      * @param event Any event emitted by a wasm smart contract that may or may not conform to the specified event structure
      * of object store gateway.
      */
-    fun handleEvent(event: TxEvent) {
-        // Try first to intercept incoming events as Gateway events, but fallback to asset classification if the event
-        // does not fit the expected gateway event structure
-        GatewayEvent.fromEventOrNull(event)?.let { gatewayEvent ->
-            when (gatewayEvent.eventType) {
-                GatewayExpectedEventType.ACCESS_GRANT -> scopePermissionsService.processAccessGrant(
-                    scopeAddress = gatewayEvent.scopeAddress,
-                    granteeAddress = gatewayEvent.targetAccount,
-                    grantSourceAddresses = getSignerAddressesForTx(gatewayEvent.txHash),
-                    grantId = gatewayEvent.accessGrantId,
-                    sourceDetails = "source: $gatewayEvent",
-                ).also { grantResponse ->
-                    when (grantResponse) {
-                        is GrantResponse.Accepted -> logger.info("$gatewayEvent succeeded in creating grant with granter [${grantResponse.granterAddress}]")
-                        is GrantResponse.Rejected -> logger.warn("$gatewayEvent rejected: ${grantResponse.message}")
-                        is GrantResponse.Error -> logger.error("$gatewayEvent failed with error", grantResponse.cause)
-                    }
+    fun handleEvent(event: GatewayEvent) {
+        when (event.gatewayEventType) {
+            GatewayExpectedEventType.ACCESS_GRANT -> scopePermissionsService.processAccessGrant(
+                scopeAddress = event.scopeAddress,
+                granteeAddress = event.targetAccount,
+                grantSourceAddresses = getSignerAddressesForTx(event.txHash),
+                grantId = event.accessGrantId,
+                sourceDetails = "source: $event",
+            ).also { grantResponse ->
+                when (grantResponse) {
+                    is GrantResponse.Accepted -> logger.info("$event succeeded in creating grant with granter [${grantResponse.granterAddress}]")
+                    is GrantResponse.Rejected -> logger.warn("$event rejected: ${grantResponse.message}")
+                    is GrantResponse.Error -> logger.error("$event failed with error", grantResponse.cause)
                 }
-                GatewayExpectedEventType.ACCESS_REVOKE -> scopePermissionsService.processAccessRevoke(
-                    scopeAddress = gatewayEvent.scopeAddress,
-                    granteeAddress = gatewayEvent.targetAccount,
-                    revokeSourceAddresses = getSignerAddressesForTx(gatewayEvent.txHash),
-                    // Include the target account as an account that can revoke permissions.  Any account should be able
-                    // to revoke its own grants
-                    additionalAuthorizedAddresses = setOf(gatewayEvent.targetAccount),
-                    grantId = gatewayEvent.accessGrantId,
-                    sourceDetails = "source: $gatewayEvent",
-                ).also { revokeResponse ->
-                    when (revokeResponse) {
-                        is RevokeResponse.Accepted -> logger.info("$gatewayEvent succeeded in revoking ${revokeResponse.revokedGrantsCount} grant(s)")
-                        is RevokeResponse.Rejected -> logger.warn("$gatewayEvent rejected: ${revokeResponse.message}")
-                        is RevokeResponse.Error -> logger.error("$gatewayEvent failed with error", revokeResponse.cause)
-                    }
+            }
+            GatewayExpectedEventType.ACCESS_REVOKE -> scopePermissionsService.processAccessRevoke(
+                scopeAddress = event.scopeAddress,
+                granteeAddress = event.targetAccount,
+                revokeSourceAddresses = getSignerAddressesForTx(event.txHash),
+                // Include the target account as an account that can revoke permissions.  Any account should be able
+                // to revoke its own grants
+                additionalAuthorizedAddresses = setOf(event.targetAccount),
+                grantId = event.accessGrantId,
+                sourceDetails = "source: $event",
+            ).also { revokeResponse ->
+                when (revokeResponse) {
+                    is RevokeResponse.Accepted -> logger.info("$event succeeded in revoking ${revokeResponse.revokedGrantsCount} grant(s)")
+                    is RevokeResponse.Rejected -> logger.warn("$event rejected: ${revokeResponse.message}")
+                    is RevokeResponse.Error -> logger.error("$event failed with error", revokeResponse.cause)
                 }
             }
         }

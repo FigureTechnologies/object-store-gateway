@@ -15,16 +15,26 @@ data class BatchProperties(
 )
 
 @ConstructorBinding
-@ConfigurationProperties(prefix = "event.stream")
+@ConfigurationProperties(prefix = "blockstream")
 @Validated
-data class EventStreamProperties(
-    val websocketUri: URI,
+data class BlockStreamProperties(
+    val type: String,
+    val uri: URI,
+    val apiKey: String? = null,
     val epochHeight: Long,
     val enabled: Boolean,
     val blockHeightTrackingUuid: UUID,
     val threadCount: Int = 10,
     val restartDelaySeconds: Long = 10
-)
+) {
+    enum class StreamType(val label: String) {
+        Provenance("provenance"),
+        BlockApi("blockapi"),
+    }
+
+    val streamType = StreamType.entries.find { it.label == type }
+        ?: throw IllegalArgumentException("Unsupported block stream type [$type]")
+}
 
 @ConstructorBinding
 @ConfigurationProperties(prefix = "objectstore")

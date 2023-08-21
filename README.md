@@ -143,7 +143,13 @@ the records associated with a Provenance Blockchain Scope.
 Like the grants functionality, two methods of performing an access revoke are provided:
 
 #### Wasm Event Revokes
-This service watches the event stream emitted by the Provenance Blockchain using the [Figure Tech Event Stream Library](https://github.com/FigureTechnologies/event-stream).
+This service watches the event stream emitted by the Provenance Blockchain using either the
+[Figure Tech Event Stream Library](https://github.com/FigureTechnologies/event-stream)
+or the [Figure Tech Blockapi Library](https://github.com/FigureTechnologies/pb-block-client).
+The choice of stream can be configured using the blockstream.type property (or env var BLOCKSTREAM_TYPE),
+where the value "provenance" allows connecting to a Provenance node with the [Figure Tech Event Stream Library](https://github.com/FigureTechnologies/event-stream),
+and a value of "blockapi" allows connecting to the more efficient [Figure Tech Blockapi Library](https://github.com/FigureTechnologies/pb-block-client). Blockapi usage requires
+an api key for consumption (see the BLOCKSTREAM_APIKEY env var below).
 When the [proper event formats](server/src/main/kotlin/tech/figure/objectstore/gateway/eventstream/GatewayEvent.kt) are
 detected, the service will automatically attempt to verify the authenticity of the event's sources.  If all values are
 properly established, any access grants for a target Provenance Blockchain Scope and Provenance Blockchain Account will
@@ -190,26 +196,30 @@ to customize its functionality.  The deployment properties file is located [here
 
 The following environment variables are accepted as input:
 
-### EVENT_STREAM_WEBSOCKET_URI
+### BLOCKSTREAM_URI
 REQUIRED | String
 
-An HTTP address to use in order to establish a connection to a trusted Provenance Blockchain Query Node for watching
+An HTTP address to use in order to establish a connection to a trusted Provenance Blockchain Query Node or Figure Blockapi for watching
 events emitted by the relevant Provenance Blockchain network.
 
-### EVENT_STREAM_EPOCH_HEIGHT
+### BLOCKSTREAM_APIKEY
+OPTIONAL | String
+An api key to use for authorizing the connection to the Figure Blockapi if in use.
+
+### BLOCKSTREAM_EPOCH_HEIGHT
 REQUIRED | String
 
 The service dynamically tracks each encountered block from the Provenance Blockchain in its `block_height` table.  This
 value will cause the event processor to start processing blocks at this height if no value has ever been stored in the
 table.
 
-### EVENT_STREAM_ENABLED
+### BLOCKSTREAM_ENABLED
 REQUIRED | Boolean
 
 If this value is true, the server will automatically start watching events from the target Provenance Blockchain event
 URI.  If not, a warning message will be emitted and the application will only be available for RPC route utilization.
 
-### EVENT_STREAM_BLOCK_HEIGHT_TRACKING_UUID
+### BLOCKSTREAM_BLOCK_HEIGHT_TRACKING_UUID
 REQUIRED | UUID v4
 
 A UUID that establishes the latest block height.  If the app needs to re-run various events, swap this value to a new

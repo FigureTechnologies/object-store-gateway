@@ -1,4 +1,4 @@
-FROM openjdk:11
+FROM azul/zulu-openjdk-alpine:17-jre
 
 LABEL org.opencontainers.image.source=https://github.com/figuretechnologies/object-store-gateway
 
