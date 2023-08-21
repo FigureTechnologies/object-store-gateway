@@ -4,9 +4,9 @@ bouncycastle = "1.70"
 exposed = "0.37.3"
 figure-eventstream = "0.9.1"
 flyway = "8.0.2"
-grpc = "1.45.1" # If updating this value, ensure to update the doc reference in the ClientConfig class
+grpc = "1.57.2" # If updating this value, ensure to update the doc reference in the ClientConfig class
 grpc-kotlin = "1.3.0"
-grpc-springboot = "3.4.3"
+grpc-springboot = "5.1.4"
 hikari = "5.0.1"
 jackson = "2.12.5"
 jackson-protobuf = "0.9.13"
@@ -27,6 +27,7 @@ provenance-hdwallet = "0.1.15"
 provenance-proto = "1.13.0"
 provenance-scope = "0.4.9"
 scarlet = "0.1.12"
+springboot = "3.1.1"
 sqlite = "3.36.0.3"
 testcontainers = "1.17.3"
 
@@ -75,26 +76,26 @@ scarlet-message-adapter-moshi = { module = "com.tinder.scarlet:message-adapter-m
 scarlet = { module = "com.tinder.scarlet:scarlet", version.ref = "scarlet"}
 scarlet-stream-adapter-coroutines = { module = "com.tinder.scarlet:stream-adapter-coroutines", version.ref = "scarlet" }
 scarlet-websocket-okhttp = { module = "com.tinder.scarlet:websocket-okhttp", version.ref = "scarlet" }
-springboot-autoconfigure = { module = "org.springframework.boot:spring-boot-autoconfigure" }
-springboot-starter = { module = "org.springframework.boot:spring-boot-starter" }
-springboot-starter-actuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
-springboot-starter-aop = { module = "org.springframework.boot:spring-boot-starter-aop" }
-springboot-starter-jetty = { module = "org.springframework.boot:spring-boot-starter-jetty" }
-springboot-starter-web = { module = "org.springframework.boot:spring-boot-starter-web" }
+springboot-autoconfigure = { module = "org.springframework.boot:spring-boot-autoconfigure", version.ref = "springboot" }
+springboot-starter = { module = "org.springframework.boot:spring-boot-starter", version.ref = "springboot" }
+springboot-starter-actuator = { module = "org.springframework.boot:spring-boot-starter-actuator", version.ref = "springboot" }
+springboot-starter-aop = { module = "org.springframework.boot:spring-boot-starter-aop", version.ref = "springboot" }
+springboot-starter-jetty = { module = "org.springframework.boot:spring-boot-starter-jetty", version.ref = "springboot" }
+springboot-starter-web = { module = "org.springframework.boot:spring-boot-starter-web", version.ref = "springboot" }
 sqlite = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite" }
 
 # Test
 coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlin-coroutines" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
-springboot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
+springboot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test", version.ref = "springboot" }
 testcontainers = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
 testcontainers-postgres = { module = "org.testcontainers:postgresql", version.ref = "testcontainers" }
 
 [bundles]
 database = ["exposed-core", "exposed-dao", "exposed-jdbc", "flyway", "hikari", "postgres", "sqlite"]
 eventstream = ["figure-eventstream-api", "figure-eventstream-api-model", "figure-eventstream-cli", "figure-eventstream-core"]
-grpc = ["grpc-netty", "grpc-netty-shaded", "grpc-protobuf", "grpc-stub", "grpc-springboot-starter", "grpc-kotlin-stub"]
+grpc = ["grpc-netty", "grpc-netty-shaded", "grpc-protobuf", "grpc-stub", "grpc-kotlin-stub"]
 jackson = ["jackson-module-kotlin", "jackson-module-protobuf"]
 kotlin = ["coroutines-core-jvm", "coroutines-reactor", "coroutines-jdk8", "coroutines-slf4j", "kotlin-allopen", "kotlin-reflect", "kotlin-stdlib-jdk8"]
 logging = ["kotlin-logging"]

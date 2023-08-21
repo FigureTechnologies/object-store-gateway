@@ -36,6 +36,7 @@ dependencies {
         libs.java.jwt,
         libs.okhttp3,
         libs.provenance.blockapi.client,
+        libs.grpc.springboot.starter,
         libs.bundles.database,
         libs.bundles.eventstream,
         libs.bundles.grpc,
