@@ -2,22 +2,20 @@ package tech.figure.objectstore.gateway.configuration
 
 import org.intellij.lang.annotations.Pattern
 import org.springframework.boot.context.properties.ConfigurationProperties
-import org.springframework.boot.context.properties.ConstructorBinding
+import org.springframework.boot.context.properties.bind.ConstructorBinding
 import org.springframework.validation.annotation.Validated
 import java.net.URI
 import java.util.UUID
 
-@ConstructorBinding
 @ConfigurationProperties(prefix = "batch")
 @Validated
-data class BatchProperties(
+data class BatchProperties @ConstructorBinding constructor(
     val maxProvidedRecords: Int,
 )
 
-@ConstructorBinding
 @ConfigurationProperties(prefix = "blockstream")
 @Validated
-data class BlockStreamProperties(
+data class BlockStreamProperties @ConstructorBinding constructor(
     val type: String,
     val uri: URI,
     val apiKey: String? = null,
@@ -36,10 +34,9 @@ data class BlockStreamProperties(
         ?: throw IllegalArgumentException("Unsupported block stream type [$type]")
 }
 
-@ConstructorBinding
 @ConfigurationProperties(prefix = "objectstore")
 @Validated
-data class ObjectStoreProperties(
+data class ObjectStoreProperties @ConstructorBinding constructor(
     val uri: URI,
     val privateKeys: List<String>,
     val masterKey: String,
@@ -49,18 +46,16 @@ data class ObjectStoreProperties(
 )
 
 @Validated
-@ConstructorBinding
 @ConfigurationProperties(prefix = "provenance")
-data class ProvenanceProperties(
+data class ProvenanceProperties @ConstructorBinding constructor(
     val mainNet: Boolean,
     val chainId: String,
     val channelUri: URI,
 )
 
 @Validated
-@ConstructorBinding
 @ConfigurationProperties(prefix = "db")
-data class DatabaseProperties(
+data class DatabaseProperties @ConstructorBinding constructor(
     val type: String,
     val name: String,
     val username: String,

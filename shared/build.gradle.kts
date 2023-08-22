@@ -12,5 +12,6 @@ dependencies {
 
     listOf(
         libs.bundles.test.kotlin,
+        libs.kotlin.logging,
     ).forEach(::testImplementation)
 }

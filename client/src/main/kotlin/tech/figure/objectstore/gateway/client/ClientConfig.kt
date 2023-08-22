@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit
  * used in the GatewayClient after all other parameters are supplied as input.
  *
  * The remaining parameters are directly passed into a NettyChannelBuilder.  The documentation for the builder can be
- * found at: https://www.javadoc.io/doc/io.grpc/grpc-all/1.45.1/io/grpc/netty/NettyChannelBuilder.html
+ * found at: https://www.javadoc.io/doc/io.grpc/grpc-all/1.57.2/io/grpc/netty/NettyChannelBuilder.html
  */
 data class ClientConfig(
     val gatewayUri: URI,
