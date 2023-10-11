@@ -16,6 +16,9 @@ pluginManagement {
         kotlin("jvm") version "1.9.0"
         kotlin("plugin.spring") version "1.9.0" apply false
         id("org.springframework.boot") version "3.1.1" apply false
+        id("com.github.breadmoirai.github-release") version "2.4.1"
+        id("com.figure.gradle.semver-plugin") version "1.9.1"
+        id("com.google.cloud.tools.jib") version "3.3.2"
         id("io.spring.dependency-management") version "1.1.3" apply false
         id("idea")
         id("com.google.protobuf") version "0.9.4" apply false

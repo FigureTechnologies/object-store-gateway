@@ -1,8 +1,9 @@
 group = "tech.figure.objectstore.gateway"
-version = project.property("version")?.takeIf { it != "unspecified" } ?: "1.0-SNAPSHOT"
 
 plugins {
     kotlin("jvm")
+    id("com.figure.gradle.semver-plugin")
+    id("com.github.breadmoirai.github-release")
     id("idea")
     id("maven-publish")
     id("io.github.gradle-nexus.publish-plugin") version "1.1.0"
@@ -26,6 +27,41 @@ nexusPublishing {
         }
     }
 }
+
+val githubToken = findProperty("githubToken")?.toString() ?: System.getenv("GITHUB_TOKEN")
+val overwriteRelease = (findProperty("overwriteRelease")?.toString() ?: System.getenv("OVERWRITE_RELEASE"))?.toBoolean() ?: false
+
+githubRelease {
+    apiEndpoint("https://api.github.com")
+    body("")
+    draft(false)
+    dryRun(false)
+    generateReleaseNotes(true)
+    overwrite(overwriteRelease)
+    owner("FigureTechnologies")
+    prerelease(false)
+    repo("object-store-gateway")
+    tagName(semver.versionTagName)
+    targetCommitish("main")
+    token(githubToken)
+    client
+}
+
+semver {
+    // All properties are optional, but it's a good idea to declare those that you would want
+    // to override with Gradle properties or environment variables, e.g. "overrideVersion" below
+    tagPrefix("v")
+    initialVersion("0.0.0")
+    findProperty("semver.overrideVersion")?.toString()
+        ?.let { overrideVersion(it) }
+
+    val semVerModifier = findProperty("semver.modifier")?.toString()
+        ?.let { buildVersionModifier(it) }
+        ?: { nextPatch() }
+    versionModifier(semVerModifier)
+}
+
+rootProject.version = semver.version
 
 subprojects {
     val projectName = name

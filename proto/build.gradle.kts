@@ -77,3 +77,8 @@ protobuf {
         }
     }
 }
+
+tasks.withType<Jar> {
+    // Need to install the server distribution because it's packaged in the extra directories
+    dependsOn("generateProto")
+}
