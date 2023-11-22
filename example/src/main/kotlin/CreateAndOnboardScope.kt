@@ -89,7 +89,7 @@ fun Message.toAny() = Any.pack(this, "")
 
 fun main() {
     val client = PbClient("pio-testnet-1", URI("grpcs://grpc.test.provenance.io:443"), GasEstimationMethod.MSG_FEE_CALCULATION)
-    val osClient = CachedOsClient(OsClient(URI("grpc://localhost:5005"), 30_000), 1, 1, 0)
+    val osClient = CachedOsClient(OsClient(URI("grpc://localhost:5005"), 30_000), 1, 1, 1, 1)
 
     val scopeUuid = UUID.randomUUID()
     val scopeAddress = MetadataAddress.forScope(scopeUuid).toString()

@@ -105,7 +105,7 @@ class ObjectServiceTest {
         val objectHash = objectBytes.sha256String()
 
         every { accountsRepository.isAddressEnabled(any()) } returns false
-        every { osClient.osClient.put(any(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(masterKey.publicKey), mapOf(), any(), false) } returns Futures.immediateFuture(
+        every { osClient.osClient.put(any(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(masterKey.publicKey), mapOf(), any(), true, false) } returns Futures.immediateFuture(
             Objects.ObjectResponse.newBuilder().setHash(objectHash.base64Decode().toByteString()).build()
         )
 
@@ -124,7 +124,7 @@ class ObjectServiceTest {
 
         assertEquals(objectHash, response)
         verifyAll {
-            osClient.osClient.put(any(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(masterKey.publicKey), mapOf(), any(), false)
+            osClient.osClient.put(any(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(masterKey.publicKey), mapOf(), any(), true, false)
             objectPermissionsRepository.addAccessPermission(
                 objectHash = objectHash,
                 granterAddress = masterKeyAddress,
@@ -144,7 +144,7 @@ class ObjectServiceTest {
 
         every { accountsRepository.isAddressEnabled(any()) } returns true
 
-        every { osClient.osClient.put(any(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(ownerKey), mapOf(), any(), false) } returns Futures.immediateFuture(
+        every { osClient.osClient.put(any(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(ownerKey), mapOf(), any(), true, false) } returns Futures.immediateFuture(
             Objects.ObjectResponse.newBuilder().setHash(objectHash.base64Decode().toByteString()).build()
         )
 
@@ -163,7 +163,7 @@ class ObjectServiceTest {
 
         assertEquals(objectHash, response)
         verifyAll {
-            osClient.osClient.put(any(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(ownerKey), mapOf(), any(), false)
+            osClient.osClient.put(any(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(ownerKey), mapOf(), any(), true, false)
             objectPermissionsRepository.addAccessPermission(
                 objectHash = objectHash,
                 granterAddress = ownerKeyAddress,
@@ -183,7 +183,7 @@ class ObjectServiceTest {
 
         every { accountsRepository.isAddressEnabled(any()) } returns true
 
-        every { osClient.osClient.put(any(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(ownerKey), mapOf(), any(), false) } returns Futures.immediateFuture(
+        every { osClient.osClient.put(any(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(ownerKey), mapOf(), any(), true, false) } returns Futures.immediateFuture(
             Objects.ObjectResponse.newBuilder().setHash(objectHash.base64Decode().toByteString()).build()
         )
 
@@ -202,7 +202,7 @@ class ObjectServiceTest {
 
         assertEquals(objectHash, response)
         verifyAll {
-            osClient.osClient.put(any(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(ownerKey), mapOf(), any(), false)
+            osClient.osClient.put(any(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(ownerKey), mapOf(), any(), true, false)
             objectPermissionsRepository.addAccessPermission(
                 objectHash = objectHash,
                 granterAddress = ownerKeyAddress,
@@ -223,7 +223,7 @@ class ObjectServiceTest {
 
         every { accountsRepository.isAddressEnabled(any()) } returns true
 
-        every { osClient.osClient.put(any(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(ownerKey, otherKey), mapOf(), any(), false) } returns Futures.immediateFuture(
+        every { osClient.osClient.put(any(), masterKey.publicKey, any(), objectBytes.size.toLong(), setOf(ownerKey, otherKey), mapOf(), any(), true, false) } returns Futures.immediateFuture(
             Objects.ObjectResponse.newBuilder().setHash(objectHash.base64Decode().toByteString()).build()
         )
 
@@ -286,7 +286,7 @@ class ObjectServiceTest {
         val keyToUse = if (useOwnKey) requesterKey else masterKey
         val keyToUseAddress = keyToUse.publicKey.getAddress(false)
 
-        every { osClient.osClient.put(any(), keyToUse.publicKey, any(), objectBytes.size.toLong(), setOf(requesterKey.publicKey, otherKey), mapOf(), any(), false) } returns Futures.immediateFuture(
+        every { osClient.osClient.put(any(), keyToUse.publicKey, any(), objectBytes.size.toLong(), setOf(requesterKey.publicKey, otherKey), mapOf(), any(), true, false) } returns Futures.immediateFuture(
             Objects.ObjectResponse.newBuilder().setHash(objectHash.base64Decode().toByteString()).build()
         )
 
