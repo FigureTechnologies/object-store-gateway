@@ -61,6 +61,7 @@ import tech.figure.objectstore.gateway.service.AddressVerificationService
 import tech.figure.objectstore.gateway.service.ObjectService
 import tech.figure.objectstore.gateway.service.ScopeFetchService
 import tech.figure.objectstore.gateway.service.ScopePermissionsService
+import java.io.InputStream
 import java.net.URI
 import java.security.KeyPair
 import java.security.PublicKey
@@ -523,7 +524,7 @@ class ObjectStoreGatewayServerTest {
         val objectBytes = Random.nextBytes(100)
         val obj = objectFromParts(objectBytes, "some_type")
         val byteHash = objectBytes.sha256String()
-        every { objectStoreClient.osClient.put(any(), any(), any(), any(), any(), any(), any(), any()).get().hash } returns byteHash.toByteString()
+        every { objectStoreClient.osClient.put(any<InputStream>(), any(), any(), any(), any(), any(), any(), any()).get().hash } returns byteHash.toByteString()
         return objectService.putObject(
             obj = obj,
             requesterPublicKey = requester,

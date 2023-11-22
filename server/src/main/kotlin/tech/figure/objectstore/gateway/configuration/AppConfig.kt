@@ -19,7 +19,7 @@ class AppConfig {
     fun objectStoreClient(objectStoreProperties: ObjectStoreProperties, provenanceProperties: ProvenanceProperties): CachedOsClient {
         val osClient = OsClient(objectStoreProperties.uri, 30000)
 
-        return CachedOsClient(osClient, objectStoreProperties.decryptionWorkerThreads, objectStoreProperties.concurrencySize, objectStoreProperties.cacheRecordSizeBytes)
+        return CachedOsClient(osClient, objectStoreProperties.decryptionWorkerThreads, objectStoreProperties.concurrencySize, objectStoreProperties.cacheRecordSizeBytes, objectStoreProperties.cacheJarSizeBytes)
     }
 
     @Bean(BeanQualifiers.OBJECTSTORE_ENCRYPTION_KEYS)

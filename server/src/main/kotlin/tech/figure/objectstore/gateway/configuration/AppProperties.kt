@@ -42,7 +42,8 @@ data class ObjectStoreProperties @ConstructorBinding constructor(
     val masterKey: String,
     val decryptionWorkerThreads: Short = 10,
     val concurrencySize: Short = 10,
-    val cacheRecordSizeBytes: Long = 10_000_000
+    val cacheRecordSizeBytes: Long = 10_000_000,
+    val cacheJarSizeBytes: Long = 1_000_000
 )
 
 @Validated
