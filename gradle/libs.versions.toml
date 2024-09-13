@@ -11,8 +11,8 @@ hikari = "5.0.1"
 jackson = "2.12.5"
 jackson-protobuf = "0.9.13"
 jwt = "3.19.4"
-kotlin = "1.9.0"
-kotlin-coroutines = "1.7.3"
+kotlin = "1.9.10"
+kotlin-coroutines = "1.8.1"
 # IMPORTANT: Kotlin Logging cannot be upgraded to version 3.x+ because Spring relies on an older set of logging libraries
 # and the newer Kotlin Logging libraries mandate newer logging.  Spring will start exploding when the app launches in
 # kube due to the slf4j remover.
